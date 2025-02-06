@@ -9,17 +9,39 @@ import java.time.LocalDateTime;
 @TableName("evaluation")
 public class Evaluation {
 
+    /**
+     * 评价ID
+     */
     @TableId(type = IdType.AUTO)
     private Long evaluationId;
 
+    /**
+     * 监考安排ID
+     */
+    @TableField("assignment_id")
     private Long assignmentId;
 
+    /**
+     * 评价人ID
+     */
+    @TableField("evaluator_id")
     private Integer evaluatorId;
 
+    /**
+     * 评分（支持小数点评分，如90.5）
+     */
+    @TableField("score")
     private BigDecimal score;
 
+    /**
+     * 评价内容
+     */
+    @TableField("comment")
     private String comment;
 
-    @TableField(fill = FieldFill.INSERT)
+    /**
+     * 创建时间
+     */
+    @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

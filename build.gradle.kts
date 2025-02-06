@@ -6,8 +6,8 @@ plugins {
 
 group = "com.shishaoqi"
 version = "1.0.0"
-java.sourceCompatibility = JavaVersion.VERSION_21
-java.targetCompatibility = JavaVersion.VERSION_21
+java.sourceCompatibility = JavaVersion.VERSION_17
+java.targetCompatibility = JavaVersion.VERSION_17
 
 repositories {
 	mavenCentral()
@@ -21,14 +21,11 @@ dependencies {
 	// MySQL
 	implementation("mysql:mysql-connector-java:8.0.33")
 	
-	// MyBatis Plus
+	// MyBatis Plus (简化配置)
 	implementation("com.baomidou:mybatis-plus-boot-starter:3.5.3.1")
-	implementation("com.baomidou:mybatis-plus-annotation:3.5.3.1")
-	implementation("com.baomidou:mybatis-plus-core:3.5.3.1")
-	implementation("com.baomidou:mybatis-plus-extension:3.5.3.1")
 	
 	// Jackson for JSON
-	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
+	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.13.5")
 	
 	// OpenAPI 3.0 Documentation
 	implementation("org.springdoc:springdoc-openapi-ui:1.6.15")

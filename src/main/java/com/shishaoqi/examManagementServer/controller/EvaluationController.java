@@ -1,6 +1,8 @@
 package com.shishaoqi.examManagementServer.controller;
 
+import com.shishaoqi.examManagementServer.common.Result;
 import com.shishaoqi.examManagementServer.entity.Evaluation;
+import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.service.EvaluationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -26,74 +28,76 @@ public class EvaluationController {
             @ApiResponse(responseCode = "200", description = "成功获取评价列表", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evaluation.class)))
     })
     @GetMapping("/assignment/{assignmentId}")
-    public List<Evaluation> getEvaluationsByAssignment(
+    public Result<List<Evaluation>> getEvaluationsByAssignment(
             @Parameter(description = "监考安排ID", required = true) @PathVariable Long assignmentId) {
-        return evaluationService.getEvaluationsByAssignment(assignmentId);
+        return Result.success(evaluationService.getEvaluationsByAssignment(assignmentId));
     }
 
     @Operation(summary = "获取教师的评价", description = "获取指定教师的所有评价列表", responses = {
             @ApiResponse(responseCode = "200", description = "成功获取评价列表", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evaluation.class)))
     })
     @GetMapping("/teacher/{teacherId}")
-    public List<Evaluation> getTeacherEvaluations(
+    public Result<List<Evaluation>> getTeacherEvaluations(
             @Parameter(description = "教师ID", required = true) @PathVariable Integer teacherId) {
-        return evaluationService.getTeacherEvaluations(teacherId);
+        return Result.success(evaluationService.getTeacherEvaluations(teacherId));
     }
 
     @Operation(summary = "获取教师的平均评分", description = "获取指定教师的所有评价的平均分", responses = {
             @ApiResponse(responseCode = "200", description = "成功获取平均评分", content = @Content(mediaType = "application/json", schema = @Schema(implementation = BigDecimal.class)))
     })
     @GetMapping("/teacher/{teacherId}/average-score")
-    public BigDecimal getTeacherAverageScore(
+    public Result<BigDecimal> getTeacherAverageScore(
             @Parameter(description = "教师ID", required = true) @PathVariable Integer teacherId) {
-        return evaluationService.getTeacherAverageScore(teacherId);
+        return Result.success(evaluationService.getTeacherAverageScore(teacherId));
     }
 
     @Operation(summary = "获取评价数量", description = "获取指定监考安排的评价数量", responses = {
             @ApiResponse(responseCode = "200", description = "成功获取评价数量", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Integer.class)))
     })
     @GetMapping("/assignment/{assignmentId}/count")
-    public int getEvaluationCount(
+    public Result<Integer> getEvaluationCount(
             @Parameter(description = "监考安排ID", required = true) @PathVariable Long assignmentId) {
-        return evaluationService.getEvaluationCount(assignmentId);
+        return Result.success(evaluationService.getEvaluationCount(assignmentId));
     }
 
     @Operation(summary = "检查是否已评价", description = "检查指定评价人是否已对指定监考安排进行评价", responses = {
             @ApiResponse(responseCode = "200", description = "成功获取评价状态", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Boolean.class)))
     })
     @GetMapping("/check")
-    public boolean hasEvaluated(
+    public Result<Boolean> hasEvaluated(
             @Parameter(description = "监考安排ID", required = true) @RequestParam Long assignmentId,
             @Parameter(description = "评价人ID", required = true) @RequestParam Integer evaluatorId) {
-        return evaluationService.hasEvaluated(assignmentId, evaluatorId);
+        return Result.success(evaluationService.hasEvaluated(assignmentId, evaluatorId));
     }
 
     @Operation(summary = "创建评价", description = "为指定监考安排创建新的评价", responses = {
             @ApiResponse(responseCode = "200", description = "成功创建评价", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evaluation.class)))
     })
     @PostMapping
-    public Evaluation createEvaluation(@RequestBody Evaluation evaluation) {
-        boolean success = evaluationService.saveOrUpdate(evaluation);
-        return success ? evaluation : null;
+    public Result<Evaluation> createEvaluation(@RequestBody Evaluation evaluation) {
+        boolean success = evaluationService.save(evaluation);
+        return success ? Result.success(evaluation) : Result.error(ErrorCode.SYSTEM_ERROR);
     }
 
     @Operation(summary = "更新评价", description = "更新指定ID的评价", responses = {
             @ApiResponse(responseCode = "200", description = "成功更新评价", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Evaluation.class)))
     })
     @PutMapping("/{evaluationId}")
-    public Evaluation updateEvaluation(
+    public Result<Evaluation> updateEvaluation(
             @Parameter(description = "评价ID", required = true) @PathVariable Long evaluationId,
             @RequestBody Evaluation evaluation) {
         evaluation.setEvaluationId(evaluationId);
-        return evaluationService.updateById(evaluation) ? evaluation : null;
+        boolean success = evaluationService.updateById(evaluation);
+        return success ? Result.success(evaluation) : Result.error(ErrorCode.NOT_FOUND);
     }
 
     @Operation(summary = "删除评价", description = "删除指定ID的评价", responses = {
             @ApiResponse(responseCode = "200", description = "成功删除评价", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Boolean.class)))
     })
     @DeleteMapping("/{evaluationId}")
-    public boolean deleteEvaluation(
+    public Result<Boolean> deleteEvaluation(
             @Parameter(description = "评价ID", required = true) @PathVariable Long evaluationId) {
-        return evaluationService.removeById(evaluationId);
+        boolean success = evaluationService.removeById(evaluationId);
+        return success ? Result.success(true) : Result.error(ErrorCode.NOT_FOUND);
     }
 }
