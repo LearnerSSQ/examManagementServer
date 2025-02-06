@@ -16,6 +16,7 @@ repositories {
 dependencies {
 	// Spring Boot
 	implementation("org.springframework.boot:spring-boot-starter-web")
+	implementation("org.springframework.boot:spring-boot-starter-validation")
 	
 	// MySQL
 	implementation("mysql:mysql-connector-java:8.0.33")
@@ -28,6 +29,9 @@ dependencies {
 	
 	// Jackson for JSON
 	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
+	
+	// OpenAPI 3.0 Documentation
+	implementation("org.springdoc:springdoc-openapi-ui:1.6.15")
 	
 	// Lombok
 	compileOnly("org.projectlombok:lombok")

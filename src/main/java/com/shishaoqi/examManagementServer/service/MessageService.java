@@ -25,4 +25,14 @@ public interface MessageService extends IService<Message> {
      * 根据类型获取消息列表
      */
     List<Message> getMessagesByType(Integer teacherId, Integer type);
+
+    /**
+     * 标记消息为已读
+     */
+    boolean markAsRead(Long messageId);
+
+    /**
+     * 标记所有消息为已读
+     */
+    boolean markAllAsRead(Integer teacherId);
 }

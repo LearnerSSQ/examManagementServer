@@ -28,4 +28,14 @@ public class TrainingMaterialServiceImpl extends ServiceImpl<TrainingMaterialMap
                 .orderByDesc(TrainingMaterial::getCreateTime);
         return list(wrapper);
     }
+
+    @Override
+    public boolean updateStatus(Long materialId, Integer status) {
+        return baseMapper.updateStatus(materialId, status) > 0;
+    }
+
+    @Override
+    public boolean updatePassScore(Long materialId, Integer passScore) {
+        return baseMapper.updatePassScore(materialId, passScore) > 0;
+    }
 }

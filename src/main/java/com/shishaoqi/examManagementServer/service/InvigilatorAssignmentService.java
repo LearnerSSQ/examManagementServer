@@ -16,4 +16,14 @@ public interface InvigilatorAssignmentService extends IService<InvigilatorAssign
      * 获取时间段内的监考安排
      */
     List<InvigilatorAssignment> getAssignmentsByTimeRange(LocalDateTime startTime, LocalDateTime endTime);
+
+    /**
+     * 更新监考安排状态
+     */
+    boolean updateStatus(Long assignmentId, Integer status);
+
+    /**
+     * 取消监考安排
+     */
+    boolean cancelAssignment(Long assignmentId);
 }

@@ -28,4 +28,14 @@ public class InvigilatorAssignmentServiceImpl extends ServiceImpl<InvigilatorAss
                 .orderByAsc(InvigilatorAssignment::getExamStart);
         return list(wrapper);
     }
+
+    @Override
+    public boolean updateStatus(Long assignmentId, Integer status) {
+        return baseMapper.updateStatus(assignmentId, status, LocalDateTime.now()) > 0;
+    }
+
+    @Override
+    public boolean cancelAssignment(Long assignmentId) {
+        return baseMapper.cancelAssignment(assignmentId) > 0;
+    }
 }

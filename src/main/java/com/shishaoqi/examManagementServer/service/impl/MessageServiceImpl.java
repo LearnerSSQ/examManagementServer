@@ -6,6 +6,7 @@ import com.shishaoqi.examManagementServer.entity.Message;
 import com.shishaoqi.examManagementServer.repository.MessageMapper;
 import com.shishaoqi.examManagementServer.service.MessageService;
 import org.springframework.stereotype.Service;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -43,5 +44,15 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
                 .eq(Message::getType, type)
                 .orderByDesc(Message::getCreateTime);
         return list(wrapper);
+    }
+
+    @Override
+    public boolean markAsRead(Long messageId) {
+        return baseMapper.markAsRead(messageId, LocalDateTime.now()) > 0;
+    }
+
+    @Override
+    public boolean markAllAsRead(Integer teacherId) {
+        return baseMapper.markAllAsRead(teacherId, LocalDateTime.now()) > 0;
     }
 }
