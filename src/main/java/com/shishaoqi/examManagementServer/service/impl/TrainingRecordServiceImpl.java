@@ -24,13 +24,10 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
 
     private static final Logger log = LoggerFactory.getLogger(TrainingRecordServiceImpl.class);
 
-    private final TrainingMaterialMapper materialMapper;
-
     @Autowired
     private TrainingMaterialService trainingMaterialService;
 
     public TrainingRecordServiceImpl(TrainingMaterialMapper materialMapper) {
-        this.materialMapper = materialMapper;
     }
 
     @Override
@@ -82,20 +79,46 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
     @Override
     public boolean updateScore(Long recordId, Integer score, Integer status) {
         log.info("开始更新培训成绩，记录ID：{}，分数：{}，状态：{}", recordId, score, status);
+
+        if (recordId == null || score == null || status == null) {
+            log.error("参数不能为空：recordId={}, score={}, status={}", recordId, score, status);
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
         TrainingRecord record = getById(recordId);
         if (record == null) {
             log.warn("培训记录不存在，记录ID：{}", recordId);
             throw new BusinessException(ErrorCode.TRAINING_NOT_FOUND);
         }
+
+        // 验证状态转换的合法性
+        if (record.getStatus() == 2) {
+            log.warn("培训已完成，不能修改成绩，记录ID：{}", recordId);
+            throw new BusinessException(ErrorCode.OPERATION_NOT_ALLOWED);
+        }
+
         if (score < 0 || score > 100) {
             log.warn("无效的分数：{}", score);
             throw new BusinessException(ErrorCode.INVALID_SCORE);
         }
+
+        if (status != 1 && status != 2) {
+            log.warn("无效的状态值：{}", status);
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
         record.setExamScore(score);
         record.setStatus(status);
-        record.setCompleteTime(LocalDateTime.now());
+        if (status == 2) { // 如果状态为完成，更新完成时间
+            record.setCompleteTime(LocalDateTime.now());
+        }
+
         boolean success = updateById(record);
-        log.info("更新培训成绩结果：{}，记录ID：{}", success ? "成功" : "失败", recordId);
+        if (success) {
+            log.info("成功更新培训成绩，记录ID：{}，分数：{}，状态：{}", recordId, score, status);
+        } else {
+            log.error("更新培训成绩失败，记录ID：{}，分数：{}，状态：{}", recordId, score, status);
+        }
         return success;
     }
 
@@ -136,9 +159,9 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
 
-        boolean isValid = record.getStudyTime() >= material.getRequiredTime();
+        boolean isValid = record.getStudyTime() >= material.getRequiredMinutes();
         log.info("验证学习时长结果：{}，记录ID：{}，实际学习时长：{}，要求时长：{}",
-                isValid ? "通过" : "不通过", recordId, record.getStudyTime(), material.getRequiredTime());
+                isValid ? "通过" : "不通过", recordId, record.getStudyTime(), material.getRequiredMinutes());
 
         if (!isValid) {
             throw new BusinessException(ErrorCode.INSUFFICIENT_STUDY_TIME);
@@ -203,11 +226,9 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
                 .last("LIMIT 1"));
 
         if (record != null && record.getCompleteTime() != null) {
-            TrainingMaterial material = materialMapper.selectById(materialId);
-            if (material != null && material.getValidityPeriod() != null) {
-                LocalDateTime expiryDate = record.getCompleteTime().plusMonths(material.getValidityPeriod());
-                return LocalDateTime.now().isAfter(expiryDate);
-            }
+            // 设置固定的培训有效期为6个月
+            LocalDateTime expiryDate = record.getCompleteTime().plusMonths(6);
+            return LocalDateTime.now().isAfter(expiryDate);
         }
         return true; // 如果没有完成记录，视为已过期
     }
@@ -248,23 +269,172 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
 
     @Override
     public Map<Integer, Boolean> batchCheckTrainingStatus(List<Integer> teacherIds, Long materialId) {
-        if (teacherIds == null || teacherIds.isEmpty()) {
-            return Collections.emptyMap();
+        if (teacherIds == null || teacherIds.isEmpty() || materialId == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
         }
 
+        Map<Integer, Boolean> result = new HashMap<>();
+
+        // 批量查询所有教师的培训记录
         LambdaQueryWrapper<TrainingRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.in(TrainingRecord::getTeacherId, teacherIds)
-                .eq(TrainingRecord::getMaterialId, materialId)
-                .eq(TrainingRecord::getStatus, 2);
+        wrapper.eq(TrainingRecord::getMaterialId, materialId)
+                .in(TrainingRecord::getTeacherId, teacherIds)
+                .eq(TrainingRecord::getStatus, 2) // 只查询已完成的记录
+                .orderByDesc(TrainingRecord::getCompleteTime);
 
-        List<TrainingRecord> completedRecords = list(wrapper);
-        Map<Integer, Boolean> result = teacherIds.stream()
-                .collect(Collectors.toMap(
-                        id -> id,
-                        id -> false));
+        List<TrainingRecord> records = list(wrapper);
 
-        completedRecords.forEach(record -> result.put(record.getTeacherId(), true));
+        // 将查询结果转换为Map，每个教师只取最新的一条记录
+        Map<Integer, TrainingRecord> latestRecords = records.stream()
+                .collect(Collectors.groupingBy(
+                        TrainingRecord::getTeacherId,
+                        Collectors.collectingAndThen(
+                                Collectors.toList(),
+                                list -> list.isEmpty() ? null : list.get(0))));
+
+        // 检查每个教师的培训状态
+        for (Integer teacherId : teacherIds) {
+            TrainingRecord record = latestRecords.get(teacherId);
+            if (record == null) {
+                // 没有培训记录
+                result.put(teacherId, false);
+                continue;
+            }
+
+            // 检查培训是否过期
+            boolean isExpired = isTrainingExpired(teacherId, materialId);
+            result.put(teacherId, !isExpired);
+        }
 
         return result;
+    }
+
+    @Override
+    public Map<String, Object> getRequiredTrainingStatus(Integer teacherId) {
+        Map<String, Object> status = new HashMap<>();
+
+        // 获取所有必修培训材料
+        List<TrainingMaterial> requiredMaterials = trainingMaterialService
+                .list(new LambdaQueryWrapper<TrainingMaterial>()
+                        .eq(TrainingMaterial::getType, 1)); // 假设type=1为必修培训
+
+        // 检查每个必修培训的完成情况
+        List<Map<String, Object>> details = new ArrayList<>();
+        for (TrainingMaterial material : requiredMaterials) {
+            Map<String, Object> detail = new HashMap<>();
+            detail.put("materialId", material.getMaterialId());
+            detail.put("title", material.getTitle());
+            detail.put("completed", hasCompletedTraining(teacherId, material.getMaterialId()));
+            detail.put("expired", isTrainingExpired(teacherId, material.getMaterialId()));
+            details.add(detail);
+        }
+
+        status.put("details", details);
+        status.put("totalRequired", requiredMaterials.size());
+        status.put("completedCount", details.stream()
+                .filter(d -> (boolean) d.get("completed") && !(boolean) d.get("expired"))
+                .count());
+
+        return status;
+    }
+
+    @Override
+    public Map<String, Object> getTrainingCertificate(Integer teacherId, Long materialId) {
+        Map<String, Object> certificate = new HashMap<>();
+
+        // 获取最新的完成记录
+        TrainingRecord record = getOne(new LambdaQueryWrapper<TrainingRecord>()
+                .eq(TrainingRecord::getTeacherId, teacherId)
+                .eq(TrainingRecord::getMaterialId, materialId)
+                .eq(TrainingRecord::getStatus, 2)
+                .orderByDesc(TrainingRecord::getCompleteTime)
+                .last("LIMIT 1"));
+
+        if (record == null || isTrainingExpired(teacherId, materialId)) {
+            throw new BusinessException(ErrorCode.TRAINING_EXPIRED);
+        }
+
+        TrainingMaterial material = trainingMaterialService.getById(materialId);
+        if (material == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+
+        certificate.put("certificateId", UUID.randomUUID().toString());
+        certificate.put("teacherId", teacherId);
+        certificate.put("materialTitle", material.getTitle());
+        certificate.put("completionDate", record.getCompleteTime());
+        certificate.put("score", record.getExamScore());
+        certificate.put("expiryDate", record.getCompleteTime().plusMonths(6));
+
+        return certificate;
+    }
+
+    @Override
+    public boolean assignTrainingBatch(List<Integer> teacherIds, Long materialId, LocalDateTime deadline) {
+        if (teacherIds == null || teacherIds.isEmpty() || materialId == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        TrainingMaterial material = trainingMaterialService.getById(materialId);
+        if (material == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+
+        try {
+            for (Integer teacherId : teacherIds) {
+                // 检查是否已有未完成的记录
+                boolean hasUnfinished = count(new LambdaQueryWrapper<TrainingRecord>()
+                        .eq(TrainingRecord::getTeacherId, teacherId)
+                        .eq(TrainingRecord::getMaterialId, materialId)
+                        .ne(TrainingRecord::getStatus, 2)) > 0;
+
+                if (!hasUnfinished) {
+                    createRecord(teacherId, materialId);
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            log.error("批量分配培训任务失败", e);
+            return false;
+        }
+    }
+
+    @Override
+    public List<TrainingRecord> getExpiringTrainings(Integer teacherId, int daysThreshold) {
+        LocalDateTime thresholdDate = LocalDateTime.now().plusDays(daysThreshold);
+
+        // 获取所有已完成的培训记录
+        List<TrainingRecord> completedRecords = list(new LambdaQueryWrapper<TrainingRecord>()
+                .eq(TrainingRecord::getTeacherId, teacherId)
+                .eq(TrainingRecord::getStatus, 2));
+
+        // 筛选即将过期的记录
+        return completedRecords.stream()
+                .filter(record -> {
+                    LocalDateTime expiryDate = record.getCompleteTime().plusMonths(6);
+                    return LocalDateTime.now().isBefore(expiryDate) &&
+                            expiryDate.isBefore(thresholdDate);
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public boolean resetTrainingProgress(Long recordId) {
+        TrainingRecord record = getById(recordId);
+        if (record == null) {
+            throw new BusinessException(ErrorCode.TRAINING_NOT_FOUND);
+        }
+
+        if (record.getStatus() == 2) {
+            throw new BusinessException(ErrorCode.TRAINING_ALREADY_COMPLETED);
+        }
+
+        record.setStudyTime(0);
+        record.setStatus(0);
+        record.setExamScore(null);
+        record.setStartTime(LocalDateTime.now());
+        record.setCompleteTime(null);
+
+        return updateById(record);
     }
 }

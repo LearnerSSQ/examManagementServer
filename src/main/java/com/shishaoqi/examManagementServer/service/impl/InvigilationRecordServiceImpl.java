@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
 
 @Service
 @CacheConfig(cacheNames = "invigilation_record")
@@ -434,16 +435,11 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
     @Cacheable(key = "'recent_' + #assignmentId + '_' + #hours")
     public List<InvigilationRecord> getRecentRecords(Long assignmentId, int hours) {
         if (assignmentId == null || hours <= 0) {
-            log.error("获取最近监考记录失败：参数错误");
+            log.error("获取最近监考记录失败：参数无效");
             throw new BusinessException(ErrorCode.PARAM_ERROR);
         }
 
-        // 验证监考安排是否存在
-        InvigilatorAssignment assignment = assignmentMapper.selectById(assignmentId);
-        if (assignment == null) {
-            log.error("获取最近监考记录失败：监考安排不存在，安排ID：{}", assignmentId);
-            throw new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND);
-        }
+        validateAssignment(assignmentId, "获取最近监考记录");
 
         LocalDateTime endTime = LocalDateTime.now();
         LocalDateTime startTime = endTime.minusHours(hours);
@@ -455,19 +451,234 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
                 .orderByDesc(InvigilationRecord::getCreateTime);
 
         List<InvigilationRecord> records = list(wrapper);
-        log.info("获取到{}条最近{}小时的监考记录，监考安排ID：{}", records.size(), hours, assignmentId);
+        log.info("获取到{}条最近监考记录，监考安排ID：{}", records.size(), assignmentId);
         return records;
     }
 
-    /**
-     * 验证监考安排是否存在
-     */
-    private InvigilatorAssignment validateAssignment(Long assignmentId, String operation) {
+    @Override
+    @Transactional
+    @CacheEvict(allEntries = true)
+    public InvigilationRecord recordSignIn(Long assignmentId, LocalDateTime signInTime) {
+        if (assignmentId == null || signInTime == null) {
+            log.error("记录签到失败：参数不完整");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        validateAssignment(assignmentId, "记录签到");
+
+        // 检查是否已签到
+        if (hasSignedIn(assignmentId)) {
+            log.error("记录签到失败：已存在签到记录，监考安排ID：{}", assignmentId);
+            throw new BusinessException(ErrorCode.PARAM_ERROR.getCode(), "已存在签到记录");
+        }
+
+        InvigilationRecord record = new InvigilationRecord();
+        record.setAssignmentId(assignmentId);
+        record.setType(RECORD_TYPE_SIGN_IN);
+        record.setDescription("签到时间：" + signInTime);
+        record.setCreateTime(signInTime);
+
+        save(record);
+        log.info("成功记录签到，监考安排ID：{}", assignmentId);
+        return record;
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(allEntries = true)
+    public InvigilationRecord recordExceptionEvent(Long assignmentId, Integer eventType, String description) {
+        if (assignmentId == null || eventType == null || description == null) {
+            log.error("记录异常事件失败：参数不完整");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        validateAssignment(assignmentId, "记录异常事件");
+
+        InvigilationRecord record = new InvigilationRecord();
+        record.setAssignmentId(assignmentId);
+        record.setType(RECORD_TYPE_EXCEPTION);
+        record.setDescription(description);
+        record.setCreateTime(LocalDateTime.now());
+
+        save(record);
+        log.info("成功记录异常事件，监考安排ID：{}，事件类型：{}", assignmentId, eventType);
+        return record;
+    }
+
+    @Override
+    public Map<String, Object> getExceptionStatistics(Long examId) {
+        if (examId == null) {
+            log.error("获取异常事件统计失败：考试ID为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        log.info("获取异常事件统计，考试ID：{}", examId);
+        Map<String, Object> statistics = new HashMap<>();
+
+        // 获取异常记录总数
+        LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(InvigilationRecord::getType, RECORD_TYPE_EXCEPTION);
+        long totalExceptions = count(wrapper);
+        statistics.put("totalExceptions", totalExceptions);
+
+        return statistics;
+    }
+
+    @Override
+    public List<InvigilationRecord> getAssignmentRecords(Long assignmentId) {
+        if (assignmentId == null) {
+            log.error("获取监考记录失败：监考安排ID为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        validateAssignment(assignmentId, "获取监考记录");
+
+        log.info("获取监考记录，监考安排ID：{}", assignmentId);
+        LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(InvigilationRecord::getAssignmentId, assignmentId)
+                .orderByDesc(InvigilationRecord::getCreateTime);
+
+        List<InvigilationRecord> records = list(wrapper);
+        log.info("获取到{}条监考记录，监考安排ID：{}", records.size(), assignmentId);
+        return records;
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(allEntries = true)
+    public boolean updateEventStatus(Long recordId, Integer status, String handlerComment) {
+        if (recordId == null || status == null) {
+            log.error("更新事件状态失败：参数不完整");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        InvigilationRecord record = getById(recordId);
+        if (record == null) {
+            log.error("更新事件状态失败：记录不存在，记录ID：{}", recordId);
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+
+        record.setDescription(record.getDescription() + "\n处理意见：" + handlerComment);
+        boolean success = updateById(record);
+        log.info("更新事件状态{}，记录ID：{}", success ? "成功" : "失败", recordId);
+        return success;
+    }
+
+    @Override
+    public Map<String, Object> generateInvigilationReport(Long assignmentId) {
+        if (assignmentId == null) {
+            log.error("生成监考报告失败：监考安排ID为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        validateAssignment(assignmentId, "生成监考报告");
+
+        Map<String, Object> report = new HashMap<>();
+        report.put("assignmentId", assignmentId);
+        report.put("records", getAssignmentRecords(assignmentId));
+        report.put("signInRecord", getSignInRecord(assignmentId));
+        report.put("exceptionRecords", getExceptionRecords(assignmentId));
+        report.put("statistics", getRecordStatistics(assignmentId));
+
+        log.info("成功生成监考报告，监考安排ID：{}", assignmentId);
+        return report;
+    }
+
+    @Override
+    public List<Map<String, Object>> exportInvigilationRecords(LocalDateTime startTime, LocalDateTime endTime) {
+        if (startTime == null || endTime == null) {
+            log.error("导出监考记录失败：时间范围不完整");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        if (startTime.isAfter(endTime)) {
+            log.error("导出监考记录失败：开始时间晚于结束时间");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        log.info("导出监考记录，时间范围：{} 至 {}", startTime, endTime);
+        List<Map<String, Object>> exportData = new ArrayList<>();
+
+        LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.between(InvigilationRecord::getCreateTime, startTime, endTime)
+                .orderByDesc(InvigilationRecord::getCreateTime);
+
+        List<InvigilationRecord> records = list(wrapper);
+        for (InvigilationRecord record : records) {
+            Map<String, Object> data = new HashMap<>();
+            data.put("recordId", record.getRecordId());
+            data.put("assignmentId", record.getAssignmentId());
+            data.put("type", record.getType());
+            data.put("description", record.getDescription());
+            data.put("createTime", record.getCreateTime());
+            exportData.add(data);
+        }
+
+        log.info("成功导出{}条监考记录", records.size());
+        return exportData;
+    }
+
+    @Override
+    public Map<String, Object> getTeacherInvigilationStats(Integer teacherId, int year) {
+        if (teacherId == null || year < 2000) {
+            log.error("获取教师监考统计失败：参数无效");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        log.info("获取教师监考统计，教师ID：{}，年份：{}", teacherId, year);
+        Map<String, Object> stats = new HashMap<>();
+
+        LocalDateTime startTime = LocalDateTime.of(year, 1, 1, 0, 0);
+        LocalDateTime endTime = LocalDateTime.of(year, 12, 31, 23, 59);
+
+        // 获取监考记录总数
+        LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.between(InvigilationRecord::getCreateTime, startTime, endTime);
+        long totalRecords = count(wrapper);
+        stats.put("totalRecords", totalRecords);
+
+        return stats;
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(allEntries = true)
+    public boolean recordInspectionResult(Long assignmentId, Map<String, Object> inspectionDetails) {
+        if (assignmentId == null || inspectionDetails == null) {
+            log.error("记录巡查结果失败：参数不完整");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        validateAssignment(assignmentId, "记录巡查结果");
+
+        InvigilationRecord record = new InvigilationRecord();
+        record.setAssignmentId(assignmentId);
+        record.setType(RECORD_TYPE_NOTE);
+        record.setDescription("巡查结果：" + inspectionDetails.toString());
+        record.setCreateTime(LocalDateTime.now());
+
+        boolean success = save(record);
+        log.info("记录巡查结果{}，监考安排ID：{}", success ? "成功" : "失败", assignmentId);
+        return success;
+    }
+
+    @Override
+    public List<InvigilationRecord> getPendingExceptionEvents() {
+        log.info("获取未处理的异常事件");
+        LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(InvigilationRecord::getType, RECORD_TYPE_EXCEPTION)
+                .orderByDesc(InvigilationRecord::getCreateTime);
+
+        List<InvigilationRecord> records = list(wrapper);
+        log.info("获取到{}条未处理的异常事件", records.size());
+        return records;
+    }
+
+    private void validateAssignment(Long assignmentId, String operation) {
         InvigilatorAssignment assignment = assignmentMapper.selectById(assignmentId);
         if (assignment == null) {
             log.error("{}失败：监考安排不存在，安排ID：{}", operation, assignmentId);
             throw new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND);
         }
-        return assignment;
     }
 }

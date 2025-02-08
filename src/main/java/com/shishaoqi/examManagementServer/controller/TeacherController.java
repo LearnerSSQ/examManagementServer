@@ -81,7 +81,18 @@ public class TeacherController {
         @PutMapping("/{teacherId}/last-login")
         public Result<Boolean> updateLastLogin(
                         @Parameter(description = "教师ID", required = true) @PathVariable Integer teacherId) {
-                boolean success = teacherService.updateLastLogin(teacherId);
+                boolean success = (boolean) teacherService.updateLastLogin(teacherId);
+                return success ? Result.success(true) : Result.error(ErrorCode.USER_NOT_FOUND);
+        }
+
+        @Operation(summary = "更新教师职称", description = "更新指定教师的职称", responses = {
+                        @ApiResponse(responseCode = "200", description = "成功更新职称", content = @Content(mediaType = "application/json", schema = @Schema(implementation = Boolean.class)))
+        })
+        @PutMapping("/{teacherId}/title")
+        public Result<Boolean> updateTitle(
+                        @Parameter(description = "教师ID", required = true) @PathVariable Integer teacherId,
+                        @Parameter(description = "新职称", required = true) @RequestParam String title) {
+                boolean success = teacherService.updateTitle(teacherId, title);
                 return success ? Result.success(true) : Result.error(ErrorCode.USER_NOT_FOUND);
         }
 }

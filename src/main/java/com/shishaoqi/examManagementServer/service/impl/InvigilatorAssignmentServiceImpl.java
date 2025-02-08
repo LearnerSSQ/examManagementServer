@@ -3,6 +3,7 @@ package com.shishaoqi.examManagementServer.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shishaoqi.examManagementServer.entity.InvigilatorAssignment;
+import com.shishaoqi.examManagementServer.entity.Teacher;
 import com.shishaoqi.examManagementServer.exception.BusinessException;
 import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.InvigilatorAssignmentMapper;
@@ -13,6 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.ArrayList;
+import java.util.HashMap;
 
 @Service
 public class InvigilatorAssignmentServiceImpl extends ServiceImpl<InvigilatorAssignmentMapper, InvigilatorAssignment>
@@ -208,5 +212,103 @@ public class InvigilatorAssignmentServiceImpl extends ServiceImpl<InvigilatorAss
                     newAssignment.getTeacherId(), newAssignment.getExamStart(), newAssignment.getExamEnd(), count);
         }
         return count > 0;
+    }
+
+    @Override
+    @Transactional
+    public boolean batchConfirmAssignments(List<Long> assignmentIds) {
+        if (assignmentIds == null || assignmentIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        return update().in("assignment_id", assignmentIds)
+                .set("status", 1)
+                .update();
+    }
+
+    @Override
+    public List<InvigilatorAssignment> getTeacherAssignments(Integer teacherId, LocalDateTime startTime,
+            LocalDateTime endTime) {
+        if (teacherId == null || startTime == null || endTime == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        return lambdaQuery()
+                .eq(InvigilatorAssignment::getTeacherId, teacherId)
+                .between(InvigilatorAssignment::getExamStart, startTime, endTime)
+                .orderByAsc(InvigilatorAssignment::getExamStart)
+                .list();
+    }
+
+    @Override
+    @Transactional
+    public List<Map<String, Object>> autoAssignInvigilators(Long examId, int count) {
+        if (examId == null || count <= 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        // 自动分配监考老师的逻辑需要根据具体业务规则实现
+        return new ArrayList<>();
+    }
+
+    @Override
+    public Map<String, Object> getWorkloadBalanceReport(String timeRange) {
+        Map<String, Object> report = new HashMap<>();
+        // 工作量平衡报告的具体实现需要根据业务规则来完成
+        return report;
+    }
+
+    @Override
+    public List<Teacher> matchInvigilatorsBySpecialty(String subjectArea, int count) {
+        if (subjectArea == null || count <= 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        // 根据专业匹配监考教师的逻辑需要根据具体业务规则实现
+        return new ArrayList<>();
+    }
+
+    @Override
+    public List<Map<String, Object>> getConflictReport(LocalDateTime startTime, LocalDateTime endTime) {
+        if (startTime == null || endTime == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        // 时间冲突报告的具体实现需要根据业务规则来完成
+        return new ArrayList<>();
+    }
+
+    @Override
+    @Transactional
+    public boolean batchAdjustAssignments(List<Map<String, Object>> adjustments) {
+        if (adjustments == null || adjustments.isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        // 批量调整监考安排的逻辑需要根据具体业务规则实现
+        return true;
+    }
+
+    @Override
+    @Transactional
+    public Map<String, Object> resolveTimeConflict(InvigilatorAssignment assignment) {
+        if (assignment == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        // 解决时间冲突的逻辑需要根据具体业务规则实现
+        return new HashMap<>();
+    }
+
+    @Override
+    public List<Map<String, Object>> generateAssignmentSuggestions(Long examId) {
+        if (examId == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        // 生成监考安排建议的逻辑需要根据具体业务规则实现
+        return new ArrayList<>();
+    }
+
+    @Override
+    public Map<String, Object> getExamAssignmentStatistics(Long examId) {
+        if (examId == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        Map<String, Object> statistics = new HashMap<>();
+        // 考试监考安排统计的具体实现需要根据业务规则来完成
+        return statistics;
     }
 }

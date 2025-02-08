@@ -2,6 +2,7 @@ package com.shishaoqi.examManagementServer.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.shishaoqi.examManagementServer.entity.TrainingRecord;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -34,77 +35,87 @@ public interface TrainingRecordService extends IService<TrainingRecord> {
 
     /**
      * 更新学习进度
-     * 
-     * @param recordId  记录ID
-     * @param studyTime 学习时长（分钟）
-     * @return 是否更新成功
      */
     boolean updateStudyProgress(Long recordId, Integer studyTime);
 
     /**
      * 验证是否达到规定学习时长
-     * 
-     * @param recordId 记录ID
-     * @return 是否达到要求
      */
     boolean validateStudyTime(Long recordId);
 
     /**
      * 获取培训统计信息
-     * 
-     * @param teacherId 教师ID
-     * @return 统计信息（包含完成率、平均分等）
      */
     Map<String, Object> getTrainingStatistics(Integer teacherId);
 
     /**
      * 获取未完成的培训列表
-     * 
-     * @param teacherId 教师ID
-     * @return 未完成的培训记录列表
      */
     List<TrainingRecord> getUnfinishedTrainings(Integer teacherId);
 
     /**
      * 获取最近的培训记录
-     * 
-     * @param teacherId 教师ID
-     * @param months    最近几个月
-     * @return 培训记录列表
      */
     List<TrainingRecord> getRecentTrainings(Integer teacherId, int months);
 
     /**
      * 检查培训是否过期
-     * 
-     * @param teacherId  教师ID
-     * @param materialId 培训材料ID
-     * @return 是否过期
      */
     boolean isTrainingExpired(Integer teacherId, Long materialId);
 
     /**
      * 获取教师的培训完成率
-     * 
-     * @param teacherId 教师ID
-     * @return 完成率（0-100）
      */
     double getCompletionRate(Integer teacherId);
 
     /**
      * 获取教师的平均培训成绩
-     * 
-     * @param teacherId 教师ID
-     * @return 平均成绩
      */
     double getAverageScore(Integer teacherId);
 
     /**
      * 批量检查培训状态
+     */
+    Map<Integer, Boolean> batchCheckTrainingStatus(List<Integer> teacherIds, Long materialId);
+
+    /**
+     * 获取教师的必修培训完成情况
+     */
+    Map<String, Object> getRequiredTrainingStatus(Integer teacherId);
+
+    /**
+     * 获取教师的培训合格证明
+     * 
+     * @param teacherId  教师ID
+     * @param materialId 培训材料ID
+     * @return 包含证书信息的Map
+     */
+    Map<String, Object> getTrainingCertificate(Integer teacherId, Long materialId);
+
+    /**
+     * 批量分配培训任务
      * 
      * @param teacherIds 教师ID列表
      * @param materialId 培训材料ID
-     * @return 教师ID -> 培训状态的映射
+     * @param deadline   截止时间
+     * @return 分配结果
      */
-    Map<Integer, Boolean> batchCheckTrainingStatus(List<Integer> teacherIds, Long materialId);
+    boolean assignTrainingBatch(List<Integer> teacherIds, Long materialId, LocalDateTime deadline);
+
+    /**
+     * 获取即将过期的培训记录
+     * 
+     * @param teacherId     教师ID
+     * @param daysThreshold 天数阈值
+     * @return 即将过期的培训记录列表
+     */
+    List<TrainingRecord> getExpiringTrainings(Integer teacherId, int daysThreshold);
+
+    /**
+     * 重置培训进度
+     * 
+     * @param recordId 记录ID
+     * @return 是否重置成功
+     */
+    boolean resetTrainingProgress(Long recordId);
 }

@@ -6,19 +6,32 @@ import com.shishaoqi.examManagementServer.entity.TrainingMaterial;
 import com.shishaoqi.examManagementServer.exception.BusinessException;
 import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.TrainingMaterialMapper;
+import com.shishaoqi.examManagementServer.repository.TrainingRecordMapper;
 import com.shishaoqi.examManagementServer.service.TrainingMaterialService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.io.Serializable;
+import java.util.HashMap;
 
 @Service
 public class TrainingMaterialServiceImpl extends ServiceImpl<TrainingMaterialMapper, TrainingMaterial>
         implements TrainingMaterialService {
 
     private static final Logger log = LoggerFactory.getLogger(TrainingMaterialServiceImpl.class);
+
+    @Autowired
+    private TrainingMaterialMapper trainingMaterialMapper;
+
+    @Autowired
+    private TrainingRecordMapper trainingRecordMapper;
 
     @Override
     public List<TrainingMaterial> getPublishedMaterials() {
@@ -47,57 +60,163 @@ public class TrainingMaterialServiceImpl extends ServiceImpl<TrainingMaterialMap
     }
 
     @Override
-    public boolean updateStatus(Long materialId, Integer status) {
-        if (materialId == null) {
-            log.error("更新培训材料状态失败：材料ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (status == null || status < 0 || status > 2) {
-            log.error("更新培训材料状态失败：状态无效，status={}", status);
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        // 检查材料是否存在
-        TrainingMaterial material = getById(materialId);
+    @Transactional
+    @CacheEvict(value = "materialCache", key = "#material.materialId")
+    public void addTrainingMaterial(TrainingMaterial material) {
         if (material == null) {
-            log.error("更新培训材料状态失败：材料不存在，ID={}", materialId);
-            throw new BusinessException(ErrorCode.NOT_FOUND);
+            throw new BusinessException("培训材料不能为空");
         }
-
-        boolean success = baseMapper.updateStatus(materialId, status) > 0;
-        if (success) {
-            log.info("成功更新培训材料状态，ID：{}，新状态：{}", materialId, status);
-        } else {
-            log.error("更新培训材料状态失败，ID：{}", materialId);
-        }
-        return success;
+        material.setCreateTime(LocalDateTime.now());
+        material.setStatus(1); // 1: 正常状态
+        trainingMaterialMapper.insert(material);
     }
 
     @Override
+    @Transactional
+    @CacheEvict(value = "materialCache", key = "#material.materialId")
+    public void updateTrainingMaterial(TrainingMaterial material) {
+        if (material == null || material.getMaterialId() == null) {
+            throw new BusinessException("培训材料信息不完整");
+        }
+        trainingMaterialMapper.updateById(material);
+    }
+
+    @Override
+    @Cacheable(value = "materialCache", key = "'latest:' + #limit")
+    public List<TrainingMaterial> getLatestMaterials(Integer limit) {
+        return trainingMaterialMapper.getLatestMaterials(limit);
+    }
+
+    @Override
+    @Cacheable(value = "materialCache", key = "'uncompleted:' + #teacherId")
+    public List<TrainingMaterial> getUncompletedMaterials(Integer teacherId) {
+        return trainingMaterialMapper.getUncompletedMaterials(teacherId);
+    }
+
+    @Override
+    @Cacheable(value = "materialCache", key = "'stats:' + #startDate + ':' + #endDate")
+    public List<Map<String, Object>> getMaterialStatistics(LocalDateTime startDate, LocalDateTime endDate) {
+        return trainingMaterialMapper.getMaterialStatistics(startDate, endDate);
+    }
+
+    @Override
+    @Cacheable(value = "materialCache", key = "'required'")
+    public List<TrainingMaterial> getRequiredMaterials() {
+        return trainingMaterialMapper.getRequiredMaterials();
+    }
+
+    @Override
+    @Cacheable(value = "materialCache", key = "'completion'")
+    public List<Map<String, Object>> getMaterialCompletionRates() {
+        return trainingMaterialMapper.getMaterialCompletionRates();
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "materialCache", allEntries = true)
+    public void batchUpdateStatus(List<TrainingMaterial> materials) {
+        if (materials == null || materials.isEmpty()) {
+            throw new BusinessException("培训材料列表不能为空");
+        }
+        trainingMaterialMapper.batchUpdateStatus(materials);
+    }
+
+    @Override
+    @Cacheable(value = "materialCache", key = "'deptStats'")
+    public List<Map<String, Object>> getDepartmentMaterialStats() {
+        return trainingMaterialMapper.getDepartmentMaterialStats();
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "materialCache", key = "#materialId")
+    public boolean updateStatus(Long materialId, Integer status) {
+        return trainingMaterialMapper.updateStatus(materialId, status) > 0;
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "materialCache", key = "#materialId")
     public boolean updatePassScore(Long materialId, Integer passScore) {
-        if (materialId == null) {
-            log.error("更新通过分数失败：材料ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (passScore == null || passScore < 0 || passScore > 100) {
-            log.error("更新通过分数失败：分数无效，passScore={}", passScore);
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
+        return trainingMaterialMapper.updatePassScore(materialId, passScore) > 0;
+    }
 
-        // 检查材料是否存在
-        TrainingMaterial material = getById(materialId);
+    @Override
+    @Cacheable(value = "materialCache", key = "#materialId")
+    public TrainingMaterial getMaterialById(Long materialId) {
+        return trainingMaterialMapper.selectById(materialId);
+    }
+
+    @Override
+    public boolean checkMaterialExpiration(Long materialId) {
+        TrainingMaterial material = getMaterialById(materialId);
         if (material == null) {
-            log.error("更新通过分数失败：材料不存在，ID={}", materialId);
-            throw new BusinessException(ErrorCode.NOT_FOUND);
+            throw new BusinessException("培训材料不存在");
+        }
+        return LocalDateTime.now().isAfter(material.getCreateTime().plusDays(30)); // 默认30天过期
+    }
+
+    @Override
+    @Cacheable(value = "materialCache", key = "'progress:' + #materialId + ':' + #teacherId")
+    public Map<String, Object> getMaterialProgress(Long materialId, Integer teacherId) {
+        Map<String, Object> progress = new HashMap<>();
+
+        // 获取培训材料信息
+        TrainingMaterial material = getMaterialById(materialId);
+        if (material == null) {
+            throw new BusinessException("培训材料不存在");
         }
 
-        boolean success = baseMapper.updatePassScore(materialId, passScore) > 0;
-        if (success) {
-            log.info("成功更新培训材料通过分数，ID：{}，新分数：{}", materialId, passScore);
-        } else {
-            log.error("更新培训材料通过分数失败，ID：{}", materialId);
+        // 获取学习记录
+        Map<String, Object> record = trainingRecordMapper.getTeacherTrainingDetails(teacherId).stream()
+                .filter(r -> materialId.equals(r.get("material_id")))
+                .findFirst()
+                .orElse(new HashMap<>());
+
+        progress.put("materialId", materialId);
+        progress.put("materialTitle", material.getTitle());
+        progress.put("studyTime", record.getOrDefault("study_duration", 0));
+        progress.put("quizScore", record.getOrDefault("quiz_score", 0));
+        progress.put("status", record.getOrDefault("status", 0));
+        progress.put("lastStudyTime", record.get("completion_time"));
+
+        return progress;
+    }
+
+    @Override
+    @Cacheable(value = "materialCache", key = "'feedback:' + #materialId")
+    public Map<String, Object> getMaterialFeedbackStats(Long materialId) {
+        Map<String, Object> stats = new HashMap<>();
+
+        List<Map<String, Object>> materialStats = getMaterialStatistics(null, null);
+        Map<String, Object> currentStats = materialStats.stream()
+                .filter(s -> materialId.equals(s.get("material_id")))
+                .findFirst()
+                .orElse(new HashMap<>());
+
+        stats.put("learnerCount", currentStats.getOrDefault("learner_count", 0));
+        stats.put("averageScore", currentStats.getOrDefault("average_score", 0));
+        stats.put("completedCount", currentStats.getOrDefault("completed_count", 0));
+
+        return stats;
+    }
+
+    @Override
+    @Cacheable(value = "materialCache", key = "'recommended:' + #teacherId")
+    public List<TrainingMaterial> getRecommendedMaterials(Integer teacherId) {
+        // 获取教师未完成的材料
+        List<TrainingMaterial> uncompletedRequired = trainingMaterialMapper.getUncompletedMaterials(teacherId).stream()
+                .filter(m -> m.getType() == 1) // 使用type字段代替isRequired
+                .collect(java.util.stream.Collectors.toList());
+
+        if (!uncompletedRequired.isEmpty()) {
+            return uncompletedRequired;
         }
-        return success;
+
+        // 如果必修材料都已完成，获取最新的选修材料
+        return trainingMaterialMapper.getLatestMaterials(5).stream()
+                .filter(m -> m.getType() != 1) // 使用type字段代替isRequired
+                .collect(java.util.stream.Collectors.toList());
     }
 
     @Override

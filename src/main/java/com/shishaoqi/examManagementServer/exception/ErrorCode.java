@@ -11,6 +11,7 @@ public enum ErrorCode {
     UNAUTHORIZED(401, "未授权"),
     FORBIDDEN(403, "禁止访问"),
     NOT_FOUND(404, "资源不存在"),
+    OPERATION_NOT_ALLOWED(403, "操作不允许"),
 
     // 用户相关错误码 (1000-1999)
     USER_NOT_FOUND(1000, "用户不存在"),

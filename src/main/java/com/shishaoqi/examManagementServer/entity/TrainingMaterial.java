@@ -67,10 +67,4 @@ public class TrainingMaterial {
      */
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
-
-    @TableField("required_time")
-    private Integer requiredTime;
-
-    @TableField("validity_period")
-    private Integer validityPeriod;
 }

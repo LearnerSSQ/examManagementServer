@@ -1,261 +1,189 @@
 package com.shishaoqi.examManagementServer.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shishaoqi.examManagementServer.entity.Message;
-import com.shishaoqi.examManagementServer.entity.Teacher;
-import com.shishaoqi.examManagementServer.exception.BusinessException;
-import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.MessageMapper;
 import com.shishaoqi.examManagementServer.service.MessageService;
-import com.shishaoqi.examManagementServer.service.TeacherService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.shishaoqi.examManagementServer.exception.BusinessException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.io.Serializable;
+import java.util.Map;
+import java.util.ArrayList;
 
 @Service
 public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> implements MessageService {
 
-    private static final Logger log = LoggerFactory.getLogger(MessageServiceImpl.class);
-
-    private final TeacherService teacherService;
-
-    public MessageServiceImpl(TeacherService teacherService) {
-        this.teacherService = teacherService;
-    }
+    @Autowired
+    private MessageMapper messageMapper;
 
     @Override
-    public List<Message> getUnreadMessages(Integer teacherId) {
-        if (teacherId == null) {
-            log.error("获取未读消息失败：教师ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        LambdaQueryWrapper<Message> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Message::getTeacherId, teacherId)
-                .eq(Message::getStatus, 0)
-                .orderByDesc(Message::getCreateTime);
-        List<Message> messages = list(wrapper);
-        log.info("获取教师[{}]的未读消息列表，共{}条", teacherId, messages.size());
-        return messages;
-    }
-
-    @Override
-    public List<Message> getTeacherMessages(Integer teacherId) {
-        if (teacherId == null) {
-            log.error("获取消息列表失败：教师ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        LambdaQueryWrapper<Message> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Message::getTeacherId, teacherId)
-                .orderByDesc(Message::getCreateTime);
-        List<Message> messages = list(wrapper);
-        log.info("获取教师[{}]的所有消息列表，共{}条", teacherId, messages.size());
-        return messages;
-    }
-
-    @Override
-    public int getUnreadCount(Integer teacherId) {
-        if (teacherId == null) {
-            log.error("获取未读消息数量失败：教师ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        Teacher teacher = teacherService.getById(teacherId);
-        if (teacher == null) {
-            log.error("获取未读消息数量失败：教师不存在，teacherId={}", teacherId);
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        LambdaQueryWrapper<Message> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Message::getTeacherId, teacherId)
-                .eq(Message::getStatus, 0);
-        long count = count(wrapper);
-        log.info("获取教师[{}]的未读消息数量：{}条", teacherId, count);
-        return (int) count;
-    }
-
-    @Override
-    public List<Message> getMessagesByType(Integer teacherId, Integer type) {
-        if (teacherId == null || type == null) {
-            log.error("获取消息列表失败：参数错误，teacherId={}, type={}", teacherId, type);
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (type < 1 || type > 3) {
-            log.error("获取消息列表失败：消息类型无效，type={}", type);
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        Teacher teacher = teacherService.getById(teacherId);
-        if (teacher == null) {
-            log.error("获取消息列表失败：教师不存在，teacherId={}", teacherId);
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        LambdaQueryWrapper<Message> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Message::getTeacherId, teacherId)
-                .eq(Message::getType, type)
-                .orderByDesc(Message::getCreateTime);
-        List<Message> messages = list(wrapper);
-        log.info("获取教师[{}]的类型[{}]消息列表，共{}条", teacherId, type, messages.size());
-        return messages;
-    }
-
-    @Override
-    public boolean markAsRead(Long messageId) {
-        if (messageId == null) {
-            log.error("标记消息已读失败：消息ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        Message message = getById(messageId);
+    @Transactional
+    public boolean sendMessage(Message message) {
         if (message == null) {
-            log.error("标记消息已读失败：消息不存在，ID={}", messageId);
-            throw new BusinessException(ErrorCode.MESSAGE_NOT_FOUND);
+            throw new BusinessException("消息不能为空");
         }
-
-        if (message.getStatus() == 1) {
-            log.warn("消息已经是已读状态，ID={}", messageId);
-            throw new BusinessException(ErrorCode.MESSAGE_ALREADY_READ);
-        }
-
-        message.setStatus(1);
-        message.setReadTime(LocalDateTime.now());
-        boolean success = updateById(message);
-        if (!success) {
-            log.error("标记消息已读失败，ID={}", messageId);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-        }
-        log.info("成功标记消息为已读，ID={}", messageId);
-        return true;
-    }
-
-    @Override
-    public boolean markAllAsRead(Integer teacherId) {
-        if (teacherId == null) {
-            log.error("批量标记消息已读失败：教师ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        Teacher teacher = teacherService.getById(teacherId);
-        if (teacher == null) {
-            log.error("批量标记消息已读失败：教师不存在，teacherId={}", teacherId);
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        LambdaQueryWrapper<Message> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Message::getTeacherId, teacherId)
-                .eq(Message::getStatus, 0);
-
-        List<Message> unreadMessages = list(wrapper);
-        if (unreadMessages.isEmpty()) {
-            log.info("教师[{}]没有未读消息", teacherId);
-            return true;
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        for (Message message : unreadMessages) {
-            message.setStatus(1);
-            message.setReadTime(now);
-        }
-
-        boolean success = updateBatchById(unreadMessages);
-        if (!success) {
-            log.error("批量标记消息已读失败，teacherId={}", teacherId);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-        }
-        log.info("成功标记教师[{}]的所有未读消息为已读，共{}条", teacherId, unreadMessages.size());
-        return true;
-    }
-
-    @Override
-    public boolean save(Message message) {
-        if (message == null) {
-            log.error("保存消息失败：消息对象为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (message.getTeacherId() == null) {
-            log.error("保存消息失败：教师ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (message.getTitle() == null || message.getTitle().trim().isEmpty()) {
-            log.error("保存消息失败：消息标题为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (message.getType() == null || message.getType() < 1 || message.getType() > 3) {
-            log.error("保存消息失败：消息类型无效");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        Teacher teacher = teacherService.getById(message.getTeacherId());
-        if (teacher == null) {
-            log.error("保存消息失败：教师不存在，teacherId={}", message.getTeacherId());
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        message.setStatus(0);
         message.setCreateTime(LocalDateTime.now());
-
-        boolean success = super.save(message);
-        if (!success) {
-            log.error("保存消息失败");
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-        }
-        log.info("成功保存消息，ID={}，标题：{}", message.getMessageId(), message.getTitle());
-        return true;
+        message.setStatus(0); // 0: 未读
+        return save(message);
     }
 
     @Override
-    public boolean updateById(Message message) {
-        if (message == null || message.getMessageId() == null) {
-            log.error("更新消息失败：消息ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
+    @Transactional
+    public boolean batchSendMessages(List<Message> messages) {
+        if (messages == null || messages.isEmpty()) {
+            throw new BusinessException("消息列表不能为空");
         }
-
-        Message existingMessage = getById(message.getMessageId());
-        if (existingMessage == null) {
-            log.error("更新消息失败：消息不存在，ID={}", message.getMessageId());
-            throw new BusinessException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
-
-        Teacher teacher = teacherService.getById(message.getTeacherId());
-        if (teacher == null) {
-            log.error("更新消息失败：教师不存在，teacherId={}", message.getTeacherId());
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        boolean success = super.updateById(message);
-        if (!success) {
-            log.error("更新消息失败，ID={}", message.getMessageId());
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-        }
-        log.info("成功更新消息，ID={}", message.getMessageId());
-        return true;
+        LocalDateTime now = LocalDateTime.now();
+        messages.forEach(msg -> {
+            msg.setCreateTime(now);
+            msg.setStatus(0);
+        });
+        return saveBatch(messages);
     }
 
     @Override
-    public boolean removeById(Serializable messageId) {
-        if (messageId == null) {
-            log.error("删除消息失败：消息ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
+    @Transactional
+    @CacheEvict(value = "messageCache", key = "#messageId")
+    public boolean markAsRead(Long messageId) {
+        return messageMapper.markAsRead(messageId, LocalDateTime.now()) > 0;
+    }
 
-        Message message = getById(messageId);
-        if (message == null) {
-            log.error("删除消息失败：消息不存在，ID={}", messageId);
-            throw new BusinessException(ErrorCode.MESSAGE_NOT_FOUND);
-        }
+    @Override
+    @Transactional
+    @CacheEvict(value = "messageCache", allEntries = true)
+    public boolean markAllAsRead(Integer teacherId) {
+        return messageMapper.markAllAsRead(teacherId, LocalDateTime.now()) > 0;
+    }
 
-        boolean success = super.removeById(messageId);
-        if (!success) {
-            log.error("删除消息失败，ID={}", messageId);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-        }
-        log.info("成功删除消息，ID={}", messageId);
-        return true;
+    @Override
+    @Cacheable(value = "messageCache", key = "'unread:' + #teacherId")
+    public List<Message> getUnreadMessages(Integer teacherId) {
+        return messageMapper.getUnreadMessages(teacherId, 10, 0);
+    }
+
+    @Override
+    @Cacheable(value = "messageCache", key = "'all:' + #teacherId")
+    public List<Message> getTeacherMessages(Integer teacherId) {
+        return messageMapper.getTeacherMessages(teacherId, 10, 0);
+    }
+
+    @Override
+    @Cacheable(value = "messageCache", key = "'type:' + #teacherId + ':' + #type")
+    public List<Message> getMessagesByType(Integer teacherId, Integer type) {
+        return messageMapper.getMessagesByType(teacherId, type, 10, 0);
+    }
+
+    @Override
+    public List<Message> getTrainingRelatedMessages(Integer teacherId, Integer type, LocalDateTime startTime) {
+        return messageMapper.getTrainingRelatedMessages(teacherId, type, startTime);
+    }
+
+    @Override
+    public List<Message> getUrgentExamNotifications(Integer teacherId, Integer type) {
+        return messageMapper.getUrgentExamNotifications(teacherId, type);
+    }
+
+    @Override
+    public List<Message> getSignInReminders(Integer teacherId, Integer type, LocalDateTime examDate) {
+        return messageMapper.getSignInReminders(teacherId, type, examDate);
+    }
+
+    @Override
+    @Cacheable(value = "messageStatCache", key = "'stats:' + #startTime + ':' + #endTime")
+    public List<Map<String, Object>> getMessageStatistics(LocalDateTime startTime, LocalDateTime endTime) {
+        return messageMapper.getMessageStatistics(startTime, endTime);
+    }
+
+    @Override
+    @Cacheable(value = "messageStatCache", key = "'teacherStats:' + #teacherId")
+    public List<Map<String, Object>> getTeacherMessageStatistics(Integer teacherId) {
+        return messageMapper.getTeacherMessageStatistics(teacherId);
+    }
+
+    @Override
+    @Cacheable(value = "messageStatCache", key = "'daily:' + #startTime + ':' + #endTime")
+    public List<Map<String, Object>> getDailyMessageStatistics(LocalDateTime startTime, LocalDateTime endTime) {
+        return messageMapper.getDailyMessageStatistics(startTime, endTime);
+    }
+
+    @Override
+    @Transactional
+    public void deleteExpiredMessages(LocalDateTime expiryTime) {
+        messageMapper.deleteExpiredMessages(expiryTime);
+    }
+
+    @Override
+    @Transactional
+    public void sendExamReminder(Integer teacherId, String examName, LocalDateTime examTime, String location) {
+        Message message = new Message();
+        message.setTeacherId(teacherId);
+        message.setType(2); // 考试提醒类型
+        message.setTitle("考试提醒");
+        message.setContent(String.format("您有一场考试将在%s于%s举行，考试名称：%s",
+                examTime.toString(), location, examName));
+        sendMessage(message);
+    }
+
+    @Override
+    @Transactional
+    public void sendTrainingNotification(Integer teacherId, String trainingTitle, LocalDateTime startTime) {
+        Message message = new Message();
+        message.setTeacherId(teacherId);
+        message.setType(3); // 培训通知类型
+        message.setTitle("培训通知");
+        message.setContent(String.format("您有新的培训任务：%s，开始时间：%s",
+                trainingTitle, startTime.toString()));
+        sendMessage(message);
+    }
+
+    @Override
+    @Transactional
+    public void sendUrgentNotification(List<Integer> teacherIds, String title, String content) {
+        List<Message> messages = new ArrayList<>();
+        teacherIds.forEach(teacherId -> {
+            Message message = new Message();
+            message.setTeacherId(teacherId);
+            message.setType(1); // 紧急通知类型
+            message.setTitle(title);
+            message.setContent(content);
+            messages.add(message);
+        });
+        batchSendMessages(messages);
+    }
+
+    @Override
+    @Transactional
+    public void sendSystemNotification(String title, String content, List<Integer> teacherIds) {
+        List<Message> messages = new ArrayList<>();
+        teacherIds.forEach(teacherId -> {
+            Message message = new Message();
+            message.setTeacherId(teacherId);
+            message.setType(4); // 系统通知类型
+            message.setTitle(title);
+            message.setContent(content);
+            messages.add(message);
+        });
+        batchSendMessages(messages);
+    }
+
+    @Override
+    public int getMessageCount(Integer teacherId, Integer type) {
+        return messageMapper.getMessageCount(teacherId, type);
+    }
+
+    @Override
+    public Integer getUnreadCount(Integer teacherId) {
+        return messageMapper.getUnreadCount(teacherId);
+    }
+
+    @Override
+    @Transactional
+    public void batchMarkAsRead(List<Long> messageIds) {
+        messageMapper.batchUpdateStatus(messageIds, 1, LocalDateTime.now());
     }
 }

@@ -1,242 +1,204 @@
 package com.shishaoqi.examManagementServer.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shishaoqi.examManagementServer.entity.Evaluation;
-import com.shishaoqi.examManagementServer.entity.InvigilatorAssignment;
-import com.shishaoqi.examManagementServer.exception.BusinessException;
-import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.EvaluationMapper;
-import com.shishaoqi.examManagementServer.repository.InvigilatorAssignmentMapper;
 import com.shishaoqi.examManagementServer.service.EvaluationService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.shishaoqi.examManagementServer.exception.BusinessException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import java.io.Serializable;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.*;
 
 @Service
 public class EvaluationServiceImpl extends ServiceImpl<EvaluationMapper, Evaluation> implements EvaluationService {
 
-    private static final Logger log = LoggerFactory.getLogger(EvaluationServiceImpl.class);
-    private static final BigDecimal MAX_SCORE = new BigDecimal("100");
+    @Autowired
+    private EvaluationMapper evaluationMapper;
 
-    private final InvigilatorAssignmentMapper assignmentMapper;
+    @Override
+    @Transactional
+    public void addEvaluation(Evaluation evaluation) {
+        if (evaluation == null) {
+            throw new BusinessException("考评记录不能为空");
+        }
+        evaluation.setCreateTime(LocalDateTime.now());
+        evaluationMapper.insert(evaluation);
+    }
 
-    public EvaluationServiceImpl(InvigilatorAssignmentMapper assignmentMapper) {
-        this.assignmentMapper = assignmentMapper;
+    @Override
+    @Transactional
+    public void batchAddEvaluations(List<Evaluation> evaluations) {
+        if (evaluations == null || evaluations.isEmpty()) {
+            throw new BusinessException("考评记录列表不能为空");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        evaluations.forEach(eval -> eval.setCreateTime(now));
+        evaluations.forEach(evaluationMapper::insert);
+    }
+
+    @Override
+    @Cacheable(value = "evaluationCache", key = "'avgScore:' + #teacherId")
+    public BigDecimal getTeacherAverageScore(Integer teacherId) {
+        return evaluationMapper.getTeacherAverageScore(teacherId);
+    }
+
+    @Override
+    @Cacheable(value = "evaluationCache", key = "'history:' + #teacherId")
+    public List<Map<String, Object>> getTeacherEvaluationHistory(Integer teacherId) {
+        return evaluationMapper.getTeacherEvaluationHistory(teacherId);
+    }
+
+    @Override
+    @Cacheable(value = "evaluationCache", key = "'stats:' + #teacherId + ':' + #startDate + ':' + #endDate")
+    public Map<String, Object> getTeacherEvaluationStats(Integer teacherId, LocalDateTime startDate,
+            LocalDateTime endDate) {
+        return evaluationMapper.getTeacherEvaluationStats(teacherId, startDate, endDate);
+    }
+
+    @Override
+    @Cacheable(value = "evaluationCache", key = "'excellent:' + #excellentThreshold + ':' + #minEvaluationCount")
+    public List<Map<String, Object>> getExcellentInvigilators(BigDecimal excellentThreshold,
+            Integer minEvaluationCount) {
+        return evaluationMapper.getExcellentInvigilators(excellentThreshold, minEvaluationCount);
+    }
+
+    @Override
+    @Cacheable(value = "evaluationCache", key = "'deptStats:' + #departmentId")
+    public List<Map<String, Object>> getDepartmentTeacherStats(String departmentId) {
+        return evaluationMapper.getDepartmentTeacherStats(departmentId);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "evaluationCache", allEntries = true)
+    public boolean updateEvaluationCriteria(Map<String, Object> criteria) {
+        return evaluationMapper.updateEvaluationCriteria(criteria) > 0;
+    }
+
+    @Override
+    @Cacheable(value = "evaluationCache", key = "'ranking:' + #department + ':' + #startDate + ':' + #endDate")
+    public List<Map<String, Object>> getTeacherScoreRanking(String department, LocalDateTime startDate,
+            LocalDateTime endDate) {
+        List<Map<String, Object>> stats = evaluationMapper.getDepartmentTeacherStats(department);
+        stats.sort((a, b) -> {
+            BigDecimal scoreA = (BigDecimal) a.get("average_score");
+            BigDecimal scoreB = (BigDecimal) b.get("average_score");
+            return scoreB.compareTo(scoreA);
+        });
+        return stats;
+    }
+
+    @Override
+    public BigDecimal calculateTeacherCompositeScore(Integer teacherId, LocalDateTime startDate,
+            LocalDateTime endDate) {
+        Map<String, Object> stats = getTeacherEvaluationStats(teacherId, startDate, endDate);
+        BigDecimal averageScore = (BigDecimal) stats.get("average_score");
+        Long excellentCount = (Long) stats.get("excellent_count");
+        Long totalEvaluations = (Long) stats.get("total_evaluations");
+
+        if (totalEvaluations == 0) {
+            return BigDecimal.ZERO;
+        }
+
+        // 计算综合评分：平均分*0.7 + 优秀率*0.3
+        BigDecimal excellentRate = new BigDecimal(excellentCount)
+                .divide(new BigDecimal(totalEvaluations), 2, RoundingMode.HALF_UP)
+                .multiply(new BigDecimal(100));
+
+        return averageScore.multiply(new BigDecimal("0.7"))
+                .add(excellentRate.multiply(new BigDecimal("0.3")));
+    }
+
+    @Override
+    public Map<String, Object> generateTeacherEvaluationReport(Integer teacherId, LocalDateTime startDate,
+            LocalDateTime endDate) {
+        Map<String, Object> report = new HashMap<>();
+
+        // 基本统计信息
+        Map<String, Object> stats = getTeacherEvaluationStats(teacherId, startDate, endDate);
+        report.put("statistics", stats);
+
+        // 历史考评记录
+        List<Map<String, Object>> history = getTeacherEvaluationHistory(teacherId);
+        report.put("history", history);
+
+        // 综合评分
+        BigDecimal compositeScore = calculateTeacherCompositeScore(teacherId, startDate, endDate);
+        report.put("compositeScore", compositeScore);
+
+        // 评分趋势分析
+        List<Map<String, Object>> trend = new ArrayList<>();
+        history.forEach(record -> {
+            Map<String, Object> point = new HashMap<>();
+            point.put("date", record.get("exam_date"));
+            point.put("score", record.get("score"));
+            trend.add(point);
+        });
+        report.put("scoreTrend", trend);
+
+        return report;
+    }
+
+    @Override
+    public Map<String, Object> getDepartmentScoreStatistics(String department, LocalDateTime startDate,
+            LocalDateTime endDate) {
+        List<Map<String, Object>> teacherStats = getDepartmentTeacherStats(department);
+
+        Map<String, Object> statistics = new HashMap<>();
+        DoubleSummaryStatistics stats = teacherStats.stream()
+                .map(stat -> ((BigDecimal) stat.get("average_score")).doubleValue())
+                .collect(DoubleSummaryStatistics::new,
+                        DoubleSummaryStatistics::accept,
+                        DoubleSummaryStatistics::combine);
+
+        statistics.put("averageScore", stats.getAverage());
+        statistics.put("maxScore", stats.getMax());
+        statistics.put("minScore", stats.getMin());
+        statistics.put("teacherCount", stats.getCount());
+
+        return statistics;
+    }
+
+    @Override
+    public boolean checkTeacherQualification(Integer teacherId, BigDecimal minimumScore) {
+        BigDecimal averageScore = getTeacherAverageScore(teacherId);
+        return averageScore != null && averageScore.compareTo(minimumScore) >= 0;
     }
 
     @Override
     public List<Evaluation> getEvaluationsByAssignment(Long assignmentId) {
-        if (assignmentId == null) {
-            log.error("获取评价列表失败：监考安排ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        // 验证监考安排是否存在
-        InvigilatorAssignment assignment = assignmentMapper.selectById(assignmentId);
-        if (assignment == null) {
-            log.error("获取评价列表失败：监考安排不存在，ID={}", assignmentId);
-            throw new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND);
-        }
-
-        LambdaQueryWrapper<Evaluation> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Evaluation::getAssignmentId, assignmentId)
-                .orderByDesc(Evaluation::getCreateTime);
-        List<Evaluation> evaluations = list(wrapper);
-        log.info("获取监考安排[{}]的评价列表，共{}条", assignmentId, evaluations.size());
-        return evaluations;
+        return lambdaQuery()
+                .eq(Evaluation::getAssignmentId, assignmentId)
+                .orderByDesc(Evaluation::getCreateTime)
+                .list();
     }
 
     @Override
     public List<Evaluation> getTeacherEvaluations(Integer teacherId) {
-        if (teacherId == null) {
-            log.error("获取教师评价失败：教师ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        // 通过监考安排关联查询
-        List<Long> assignmentIds = assignmentMapper.selectAssignmentIdsByTeacherId(teacherId);
-        if (assignmentIds.isEmpty()) {
-            log.info("教师[{}]没有监考安排记录", teacherId);
-            return List.of();
-        }
-
-        LambdaQueryWrapper<Evaluation> wrapper = new LambdaQueryWrapper<>();
-        wrapper.in(Evaluation::getAssignmentId, assignmentIds)
-                .orderByDesc(Evaluation::getCreateTime);
-        List<Evaluation> evaluations = list(wrapper);
-        log.info("获取教师[{}]的评价列表，共{}条", teacherId, evaluations.size());
-        return evaluations;
+        return lambdaQuery()
+                .eq(Evaluation::getEvaluatorId, teacherId)
+                .orderByDesc(Evaluation::getCreateTime)
+                .list();
     }
 
     @Override
-    public BigDecimal getTeacherAverageScore(Integer teacherId) {
-        if (teacherId == null) {
-            log.error("获取平均评分失败：教师ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        // 通过监考安排关联查询
-        List<Long> assignmentIds = assignmentMapper.selectAssignmentIdsByTeacherId(teacherId);
-        if (assignmentIds.isEmpty()) {
-            log.info("教师[{}]暂无评价记录", teacherId);
-            return BigDecimal.ZERO;
-        }
-
-        LambdaQueryWrapper<Evaluation> wrapper = new LambdaQueryWrapper<>();
-        wrapper.in(Evaluation::getAssignmentId, assignmentIds);
-        List<Evaluation> evaluations = list(wrapper);
-
-        if (evaluations.isEmpty()) {
-            log.info("教师[{}]暂无评价记录", teacherId);
-            return BigDecimal.ZERO;
-        }
-
-        BigDecimal totalScore = evaluations.stream()
-                .map(Evaluation::getScore)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal result = totalScore.divide(BigDecimal.valueOf(evaluations.size()), 1, RoundingMode.HALF_UP);
-        log.info("教师[{}]的平均评分：{}", teacherId, result);
-        return result;
+    public Integer getEvaluationCount(Long assignmentId) {
+        return lambdaQuery()
+                .eq(Evaluation::getAssignmentId, assignmentId)
+                .count().intValue();
     }
 
     @Override
-    public int getEvaluationCount(Long assignmentId) {
-        if (assignmentId == null) {
-            log.error("获取评价数量失败：监考安排ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        // 验证监考安排是否存在
-        InvigilatorAssignment assignment = assignmentMapper.selectById(assignmentId);
-        if (assignment == null) {
-            log.error("获取评价数量失败：监考安排不存在，ID={}", assignmentId);
-            throw new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND);
-        }
-
-        LambdaQueryWrapper<Evaluation> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Evaluation::getAssignmentId, assignmentId);
-        long count = count(wrapper);
-        log.info("监考安排[{}]的评价数量：{}", assignmentId, count);
-        return Math.toIntExact(count);
-    }
-
-    @Override
-    public boolean hasEvaluated(Long assignmentId, Integer evaluatorId) {
-        if (assignmentId == null || evaluatorId == null) {
-            log.error("检查评价状态失败：参数为空，assignmentId={}, evaluatorId={}", assignmentId, evaluatorId);
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        LambdaQueryWrapper<Evaluation> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Evaluation::getAssignmentId, assignmentId)
-                .eq(Evaluation::getEvaluatorId, evaluatorId);
-        boolean exists = count(wrapper) > 0;
-        log.info("检查评价人[{}]是否已评价监考安排[{}]：{}", evaluatorId, assignmentId, exists ? "已评价" : "未评价");
-        return exists;
-    }
-
-    @Override
-    public boolean save(Evaluation evaluation) {
-        validateEvaluation(evaluation);
-        validateScore(evaluation.getScore());
-
-        // 验证监考安排是否存在
-        InvigilatorAssignment assignment = assignmentMapper.selectById(evaluation.getAssignmentId());
-        if (assignment == null) {
-            log.error("保存评价失败：监考安排不存在，ID={}", evaluation.getAssignmentId());
-            throw new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND);
-        }
-
-        // 检查是否已评价
-        if (hasEvaluated(evaluation.getAssignmentId(), evaluation.getEvaluatorId())) {
-            log.error("保存评价失败：该评价人已对此监考安排进行评价");
-            throw new BusinessException(ErrorCode.EVALUATION_ALREADY_EXISTS);
-        }
-
-        boolean success = super.save(evaluation);
-        if (success) {
-            log.info("成功保存评价，ID：{}，评分：{}", evaluation.getEvaluationId(), evaluation.getScore());
-        } else {
-            log.error("保存评价失败");
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-        }
-        return true;
-    }
-
-    @Override
-    public boolean updateById(Evaluation evaluation) {
-        if (evaluation == null || evaluation.getEvaluationId() == null) {
-            log.error("更新评价失败：评价ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        // 验证评价是否存在
-        Evaluation existingEvaluation = getById(evaluation.getEvaluationId());
-        if (existingEvaluation == null) {
-            log.error("更新评价失败：评价不存在，ID={}", evaluation.getEvaluationId());
-            throw new BusinessException(ErrorCode.NOT_FOUND);
-        }
-
-        if (evaluation.getScore() != null) {
-            validateScore(evaluation.getScore());
-        }
-
-        boolean success = super.updateById(evaluation);
-        if (success) {
-            log.info("成功更新评价，ID：{}", evaluation.getEvaluationId());
-        } else {
-            log.error("更新评价失败，ID：{}", evaluation.getEvaluationId());
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-        }
-        return true;
-    }
-
-    @Override
-    public boolean removeById(Serializable id) {
-        if (id == null) {
-            log.error("删除评价失败：评价ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        boolean success = super.removeById(id);
-        if (success) {
-            log.info("成功删除评价，ID：{}", id);
-        } else {
-            log.error("删除评价失败，ID：{}", id);
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR);
-        }
-        return true;
-    }
-
-    private void validateEvaluation(Evaluation evaluation) {
-        if (evaluation == null) {
-            log.error("评价验证失败：评价对象为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (evaluation.getAssignmentId() == null) {
-            log.error("评价验证失败：监考安排ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (evaluation.getEvaluatorId() == null) {
-            log.error("评价验证失败：评价人ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (evaluation.getScore() == null) {
-            log.error("评价验证失败：评分为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-    }
-
-    private void validateScore(BigDecimal score) {
-        if (score == null || score.compareTo(BigDecimal.ZERO) < 0 || score.compareTo(MAX_SCORE) > 0) {
-            log.error("评分验证失败：评分无效 {}", score);
-            throw new BusinessException(ErrorCode.INVALID_SCORE);
-        }
+    public boolean hasEvaluated(Long assignmentId, Integer teacherId) {
+        return lambdaQuery()
+                .eq(Evaluation::getAssignmentId, assignmentId)
+                .eq(Evaluation::getEvaluatorId, teacherId)
+                .count() > 0;
     }
 }
