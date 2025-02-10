@@ -36,16 +36,16 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- 教师表（10条）
 INSERT INTO teacher (name, password, phone, email, department, title, status, last_login) VALUES
-('张三', '$2a$10$ABC...', '13800138001', 'zhangsan@univ.edu', '计算机学院', '教授', 1, '2023-10-01 09:00:00'),
-('李四', '$2a$10$DEF...', '13800138002', 'lisi@univ.edu', '数学学院', '副教授', 1, '2023-10-02 10:00:00'),
-('王五', '$2a$10$GHI...', '13800138003', 'wangwu@univ.edu', '物理学院', '讲师', 1, '2023-10-03 11:00:00'),
-('赵六', '$2a$10$JKL...', '13800138004', 'zhaoliu@univ.edu', '化学学院', '助教', 0, NULL),
-('陈七', '$2a$10$MNO...', '13800138005', 'chenqi@univ.edu', '外语学院', '教授', 1, '2023-10-05 13:00:00'),
-('周八', '$2a$10$PQR...', '13800138006', 'zhouba@univ.edu', '历史学院', '副教授', 1, '2023-10-06 14:00:00'),
-('吴九', '$2a$10$STU...', '13800138007', 'wujiu@univ.edu', '法学院', '讲师', 0, NULL),
-('郑十', '$2a$10$VWX...', '13800138008', 'zhengshi@univ.edu', '医学院', '教授', 1, '2023-10-08 16:00:00'),
-('钱十一', '$2a$10$YZA...', '13800138009', 'qianshiyi@univ.edu', '经济学院', '副教授', 1, '2023-10-09 17:00:00'),
-('孙十二', '$2a$10$BCD...', '13800138010', 'sunshier@univ.edu', '艺术学院', '讲师', 1, '2023-10-10 18:00:00');
+('张三', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', '13800138001', 'zhangsan@univ.edu', '计算机学院', '教授', 1, '2023-10-01 09:00:00'),
+('李四', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', '13800138002', 'lisi@univ.edu', '数学学院', '副教授', 1, '2023-10-02 10:00:00'),
+('王五', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', '13800138003', 'wangwu@univ.edu', '物理学院', '讲师', 1, '2023-10-03 11:00:00'),
+('赵六', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', '13800138004', 'zhaoliu@univ.edu', '化学学院', '助教', 0, NULL),
+('陈七', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', '13800138005', 'chenqi@univ.edu', '外语学院', '教授', 1, '2023-10-05 13:00:00'),
+('周八', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', '13800138006', 'zhouba@univ.edu', '历史学院', '副教授', 1, '2023-10-06 14:00:00'),
+('吴九', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', '13800138007', 'wujiu@univ.edu', '法学院', '讲师', 0, NULL),
+('郑十', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', '13800138008', 'zhengshi@univ.edu', '医学院', '教授', 1, '2023-10-08 16:00:00'),
+('钱十一', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', '13800138009', 'qianshiyi@univ.edu', '经济学院', '副教授', 1, '2023-10-09 17:00:00'),
+('孙十二', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', '13800138010', 'sunshier@univ.edu', '艺术学院', '讲师', 1, '2023-10-10 18:00:00');
 
 -- 培训材料表（10条）
 INSERT INTO training_material (title, description, content, type, required_minutes, exam_questions, pass_score, status) VALUES

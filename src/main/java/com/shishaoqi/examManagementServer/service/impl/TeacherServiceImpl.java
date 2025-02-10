@@ -12,7 +12,6 @@ import com.shishaoqi.examManagementServer.service.EvaluationService;
 import com.shishaoqi.examManagementServer.service.InvigilatorAssignmentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,14 +28,18 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
 
     private static final Logger log = LoggerFactory.getLogger(TeacherServiceImpl.class);
 
-    @Autowired
-    private EvaluationService evaluationService;
+    private final EvaluationService evaluationService;
+    private final InvigilatorAssignmentService assignmentService;
+    private final BCryptPasswordEncoder passwordEncoder;
 
-    @Autowired
-    private InvigilatorAssignmentService assignmentService;
-
-    @Autowired
-    private BCryptPasswordEncoder passwordEncoder;
+    public TeacherServiceImpl(
+            EvaluationService evaluationService,
+            InvigilatorAssignmentService assignmentService,
+            BCryptPasswordEncoder passwordEncoder) {
+        this.evaluationService = evaluationService;
+        this.assignmentService = assignmentService;
+        this.passwordEncoder = passwordEncoder;
+    }
 
     @Override
     @Transactional

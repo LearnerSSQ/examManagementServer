@@ -9,6 +9,7 @@ import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.InvigilationRecordMapper;
 import com.shishaoqi.examManagementServer.repository.InvigilatorAssignmentMapper;
 import com.shishaoqi.examManagementServer.service.InvigilationRecordService;
+import com.shishaoqi.examManagementServer.service.InvigilatorAssignmentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +41,9 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
 
     @Autowired
     private InvigilatorAssignmentMapper assignmentMapper;
+
+    @Autowired
+    private InvigilatorAssignmentService assignmentService;
 
     @Override
     @Cacheable(key = "'assignment_' + #assignmentId")
@@ -680,5 +684,86 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
             log.error("{}失败：监考安排不存在，安排ID：{}", operation, assignmentId);
             throw new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND);
         }
+    }
+
+    @Override
+    public List<InvigilationRecord> getByTimeRange(LocalDateTime startTime, LocalDateTime endTime) {
+        return lambdaQuery()
+                .ge(InvigilationRecord::getCreateTime, startTime)
+                .le(InvigilationRecord::getCreateTime, endTime)
+                .orderByDesc(InvigilationRecord::getCreateTime)
+                .list();
+    }
+
+    @Override
+    public List<InvigilationRecord> getTeacherRecords(Integer teacherId) {
+        // 先获取教师的所有监考安排ID
+        List<Long> assignmentIds = assignmentService.lambdaQuery()
+                .eq(InvigilatorAssignment::getTeacherId, teacherId)
+                .list()
+                .stream()
+                .map(InvigilatorAssignment::getAssignmentId)
+                .collect(Collectors.toList());
+
+        // 根据监考安排ID查询相关记录
+        return lambdaQuery()
+                .in(InvigilationRecord::getAssignmentId, assignmentIds)
+                .orderByDesc(InvigilationRecord::getCreateTime)
+                .list();
+    }
+
+    @Override
+    public List<InvigilationRecord> getTeacherRecordsByTimeRange(Integer teacherId, LocalDateTime startTime,
+            LocalDateTime endTime) {
+        // 先获取教师在指定时间范围内的监考安排ID
+        List<Long> assignmentIds = assignmentService.lambdaQuery()
+                .eq(InvigilatorAssignment::getTeacherId, teacherId)
+                .ge(InvigilatorAssignment::getExamStart, startTime)
+                .le(InvigilatorAssignment::getExamEnd, endTime)
+                .list()
+                .stream()
+                .map(InvigilatorAssignment::getAssignmentId)
+                .collect(Collectors.toList());
+
+        // 根据监考安排ID查询相关记录
+        return lambdaQuery()
+                .in(InvigilationRecord::getAssignmentId, assignmentIds)
+                .ge(InvigilationRecord::getCreateTime, startTime)
+                .le(InvigilationRecord::getCreateTime, endTime)
+                .orderByDesc(InvigilationRecord::getCreateTime)
+                .list();
+    }
+
+    @Override
+    public Map<String, Object> getInvigilationStatistics(LocalDateTime startTime, LocalDateTime endTime) {
+        Map<String, Object> statistics = new HashMap<>();
+
+        // 获取总记录数
+        long totalRecords = lambdaQuery()
+                .ge(InvigilationRecord::getCreateTime, startTime)
+                .le(InvigilationRecord::getCreateTime, endTime)
+                .count();
+
+        // 获取异常记录数
+        long exceptionRecords = lambdaQuery()
+                .ge(InvigilationRecord::getCreateTime, startTime)
+                .le(InvigilationRecord::getCreateTime, endTime)
+                .eq(InvigilationRecord::getType, 2) // 2表示异常事件
+                .count();
+
+        // 获取监考教师数量
+        long teacherCount = assignmentService.lambdaQuery()
+                .ge(InvigilatorAssignment::getExamStart, startTime)
+                .le(InvigilatorAssignment::getExamEnd, endTime)
+                .groupBy(InvigilatorAssignment::getTeacherId)
+                .count();
+
+        statistics.put("totalRecords", totalRecords);
+        statistics.put("exceptionRecords", exceptionRecords);
+        statistics.put("teacherCount", teacherCount);
+        statistics.put("startTime", startTime);
+        statistics.put("endTime", endTime);
+
+        return statistics;
     }
 }

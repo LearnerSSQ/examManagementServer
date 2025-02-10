@@ -173,4 +173,25 @@ public interface InvigilationRecordService extends IService<InvigilationRecord> 
      * @return 未处理的事件列表
      */
     List<InvigilationRecord> getPendingExceptionEvents();
+
+    /**
+     * 根据时间范围获取监考记录
+     */
+    List<InvigilationRecord> getByTimeRange(LocalDateTime startTime, LocalDateTime endTime);
+
+    /**
+     * 获取教师的监考记录
+     */
+    List<InvigilationRecord> getTeacherRecords(Integer teacherId);
+
+    /**
+     * 根据时间范围获取教师的监考记录
+     */
+    List<InvigilationRecord> getTeacherRecordsByTimeRange(Integer teacherId, LocalDateTime startTime,
+            LocalDateTime endTime);
+
+    /**
+     * 获取监考统计信息
+     */
+    Map<String, Object> getInvigilationStatistics(LocalDateTime startTime, LocalDateTime endTime);
 }

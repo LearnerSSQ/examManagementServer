@@ -118,4 +118,20 @@ public interface TrainingRecordService extends IService<TrainingRecord> {
      * @return 是否重置成功
      */
     boolean resetTrainingProgress(Long recordId);
+
+    /**
+     * 根据时间范围获取培训记录
+     */
+    List<TrainingRecord> getByTimeRange(LocalDateTime startTime, LocalDateTime endTime);
+
+    /**
+     * 根据时间范围获取教师的培训记录
+     */
+    List<TrainingRecord> getTeacherRecordsByTimeRange(Integer teacherId, LocalDateTime startTime,
+            LocalDateTime endTime);
+
+    /**
+     * 获取培训统计信息
+     */
+    Map<String, Object> getTrainingStatistics(LocalDateTime startTime, LocalDateTime endTime);
 }

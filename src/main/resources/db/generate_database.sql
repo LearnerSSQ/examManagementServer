@@ -15,7 +15,7 @@ USE exam_management;
 CREATE TABLE teacher (
     teacher_id INT PRIMARY KEY AUTO_INCREMENT,  -- 改为自增整数类型
     name VARCHAR(50) NOT NULL,
-    password VARCHAR(100) NOT NULL COMMENT '存储BCrypt加密后的哈希值',
+    password VARCHAR(100) NOT NULL,
     phone VARCHAR(20),
     email VARCHAR(100) UNIQUE,  -- 添加唯一约束
     department VARCHAR(50),

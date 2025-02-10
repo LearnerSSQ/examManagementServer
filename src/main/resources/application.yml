@@ -1,12 +1,16 @@
 server:
   port: 8080
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
 
 spring:
   profiles:
     active: dev
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/exam_management?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://localhost:3306/exam_management?useUnicode=true&characterEncoding=UTF-8&characterSetResults=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: root
     hikari:
@@ -22,6 +26,14 @@ spring:
   mvc:
     pathmatch:
       matching-strategy: ant_path_matcher
+
+logging:
+  level:
+    root: INFO
+    org.springframework.security: DEBUG
+    com.shishaoqi.examManagementServer: DEBUG
+    org.springframework.security.crypto.bcrypt: TRACE
+    org.springframework.security.crypto.password: TRACE
 
 springdoc:
   api-docs:

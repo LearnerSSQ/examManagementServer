@@ -437,4 +437,68 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
 
         return updateById(record);
     }
+
+    @Override
+    public List<TrainingRecord> getByTimeRange(LocalDateTime startTime, LocalDateTime endTime) {
+        if (startTime == null || endTime == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        return lambdaQuery()
+                .ge(TrainingRecord::getStartTime, startTime)
+                .le(TrainingRecord::getStartTime, endTime)
+                .orderByDesc(TrainingRecord::getStartTime)
+                .list();
+    }
+
+    @Override
+    public List<TrainingRecord> getTeacherRecordsByTimeRange(Integer teacherId, LocalDateTime startTime,
+            LocalDateTime endTime) {
+        if (teacherId == null || startTime == null || endTime == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        return lambdaQuery()
+                .eq(TrainingRecord::getTeacherId, teacherId)
+                .ge(TrainingRecord::getStartTime, startTime)
+                .le(TrainingRecord::getStartTime, endTime)
+                .orderByDesc(TrainingRecord::getStartTime)
+                .list();
+    }
+
+    @Override
+    public Map<String, Object> getTrainingStatistics(LocalDateTime startTime, LocalDateTime endTime) {
+        if (startTime == null || endTime == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        Map<String, Object> statistics = new HashMap<>();
+
+        // 获取总记录数
+        long totalRecords = lambdaQuery()
+                .ge(TrainingRecord::getStartTime, startTime)
+                .le(TrainingRecord::getStartTime, endTime)
+                .count();
+
+        // 获取已完成培训数量
+        long completedTrainings = lambdaQuery()
+                .ge(TrainingRecord::getStartTime, startTime)
+                .le(TrainingRecord::getStartTime, endTime)
+                .eq(TrainingRecord::getStatus, 2) // 假设2表示已完成
+                .count();
+
+        // 获取参与培训的教师数量
+        long teacherCount = lambdaQuery()
+                .ge(TrainingRecord::getStartTime, startTime)
+                .le(TrainingRecord::getStartTime, endTime)
+                .groupBy(TrainingRecord::getTeacherId)
+                .count();
+
+        statistics.put("totalRecords", totalRecords);
+        statistics.put("completedTrainings", completedTrainings);
+        statistics.put("teacherCount", teacherCount);
+        statistics.put("completionRate", totalRecords > 0 ? (double) completedTrainings / totalRecords : 0);
+        statistics.put("startTime", startTime);
+        statistics.put("endTime", endTime);
+
+        return statistics;
+    }
 }

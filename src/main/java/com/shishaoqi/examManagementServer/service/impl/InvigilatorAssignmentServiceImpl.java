@@ -25,41 +25,39 @@ public class InvigilatorAssignmentServiceImpl extends ServiceImpl<InvigilatorAss
     private static final Logger log = LoggerFactory.getLogger(InvigilatorAssignmentServiceImpl.class);
 
     @Override
+    public List<InvigilatorAssignment> getByTimeRange(LocalDateTime startTime, LocalDateTime endTime) {
+        return lambdaQuery()
+                .ge(InvigilatorAssignment::getExamStart, startTime)
+                .le(InvigilatorAssignment::getExamEnd, endTime)
+                .list();
+    }
+
+    @Override
     public List<InvigilatorAssignment> getTeacherAssignments(Integer teacherId) {
-        if (teacherId == null) {
-            log.error("获取教师监考安排失败：教师ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
+        return lambdaQuery()
+                .eq(InvigilatorAssignment::getTeacherId, teacherId)
+                .orderByDesc(InvigilatorAssignment::getExamStart)
+                .list();
+    }
 
-        log.info("获取教师监考安排列表，教师ID：{}", teacherId);
-        LambdaQueryWrapper<InvigilatorAssignment> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(InvigilatorAssignment::getTeacherId, teacherId)
-                .orderByDesc(InvigilatorAssignment::getExamStart);
-
-        List<InvigilatorAssignment> assignments = list(wrapper);
-        log.info("获取到{}条监考安排，教师ID：{}", assignments.size(), teacherId);
-        return assignments;
+    @Override
+    public List<InvigilatorAssignment> getTeacherAssignmentsByTimeRange(Integer teacherId, LocalDateTime startTime,
+            LocalDateTime endTime) {
+        return lambdaQuery()
+                .eq(InvigilatorAssignment::getTeacherId, teacherId)
+                .ge(InvigilatorAssignment::getExamStart, startTime)
+                .le(InvigilatorAssignment::getExamEnd, endTime)
+                .orderByDesc(InvigilatorAssignment::getExamStart)
+                .list();
     }
 
     @Override
     public List<InvigilatorAssignment> getAssignmentsByTimeRange(LocalDateTime startTime, LocalDateTime endTime) {
-        if (startTime == null || endTime == null) {
-            log.error("获取时间段内监考安排失败：时间参数为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (startTime.isAfter(endTime)) {
-            log.error("获取时间段内监考安排失败：开始时间[{}]晚于结束时间[{}]", startTime, endTime);
-            throw new BusinessException(ErrorCode.PARAM_ERROR.getCode(), "开始时间不能晚于结束时间");
-        }
-
-        log.info("获取时间段内的监考安排，开始时间：{}，结束时间：{}", startTime, endTime);
-        LambdaQueryWrapper<InvigilatorAssignment> wrapper = new LambdaQueryWrapper<>();
-        wrapper.between(InvigilatorAssignment::getExamStart, startTime, endTime)
-                .orderByAsc(InvigilatorAssignment::getExamStart);
-
-        List<InvigilatorAssignment> assignments = list(wrapper);
-        log.info("获取到{}条监考安排", assignments.size());
-        return assignments;
+        return lambdaQuery()
+                .ge(InvigilatorAssignment::getExamStart, startTime)
+                .le(InvigilatorAssignment::getExamEnd, endTime)
+                .orderByAsc(InvigilatorAssignment::getExamStart)
+                .list();
     }
 
     @Override

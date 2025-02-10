@@ -32,7 +32,7 @@ public interface EvaluationService extends IService<Evaluation> {
     /**
      * 获取教师考评统计信息
      */
-    Map<String, Object> getTeacherEvaluationStats(Integer teacherId, LocalDateTime startDate, LocalDateTime endDate);
+    Map<String, Object> getTeacherEvaluationStats(Integer teacherId, LocalDateTime startTime, LocalDateTime endTime);
 
     /**
      * 获取优秀监考教师名单
@@ -94,4 +94,24 @@ public interface EvaluationService extends IService<Evaluation> {
      * 检查是否已评价
      */
     boolean hasEvaluated(Long assignmentId, Integer teacherId);
+
+    /**
+     * 根据监考安排ID获取评估列表
+     */
+    List<Evaluation> getByAssignmentId(Long assignmentId);
+
+    /**
+     * 创建评估记录
+     */
+    boolean createEvaluation(Long assignmentId, Integer evaluatorId, Double score, String comment);
+
+    /**
+     * 批量创建评估记录
+     */
+    boolean batchCreateEvaluations(List<Evaluation> evaluations);
+
+    /**
+     * 获取评估统计信息
+     */
+    Map<String, Object> getEvaluationStatistics(LocalDateTime startTime, LocalDateTime endTime);
 }
