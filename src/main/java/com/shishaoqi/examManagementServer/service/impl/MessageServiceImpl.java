@@ -1,9 +1,11 @@
 package com.shishaoqi.examManagementServer.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.shishaoqi.examManagementServer.entity.Message;
 import com.shishaoqi.examManagementServer.repository.MessageMapper;
 import com.shishaoqi.examManagementServer.service.MessageService;
+import com.shishaoqi.examManagementServer.entity.message.Message;
+import com.shishaoqi.examManagementServer.entity.message.MessageType;
+import com.shishaoqi.examManagementServer.entity.message.MessageStatus;
 import com.shishaoqi.examManagementServer.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -27,8 +29,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         if (message == null) {
             throw new BusinessException("消息不能为空");
         }
-        message.setCreateTime(LocalDateTime.now());
-        message.setStatus(0); // 0: 未读
+        message.setSendTime(LocalDateTime.now());
+        message.setStatus(MessageStatus.UNREAD);
         return save(message);
     }
 
@@ -40,8 +42,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         }
         LocalDateTime now = LocalDateTime.now();
         messages.forEach(msg -> {
-            msg.setCreateTime(now);
-            msg.setStatus(0);
+            msg.setSendTime(now);
+            msg.setStatus(MessageStatus.UNREAD);
         });
         return saveBatch(messages);
     }
@@ -121,8 +123,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     @Transactional
     public void sendExamReminder(Integer teacherId, String examName, LocalDateTime examTime, String location) {
         Message message = new Message();
-        message.setTeacherId(teacherId);
-        message.setType(2); // 考试提醒类型
+        message.setReceiverId(teacherId);
+        message.setType(MessageType.ASSIGNMENT);
         message.setTitle("考试提醒");
         message.setContent(String.format("您有一场考试将在%s于%s举行，考试名称：%s",
                 examTime.toString(), location, examName));
@@ -133,8 +135,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     @Transactional
     public void sendTrainingNotification(Integer teacherId, String trainingTitle, LocalDateTime startTime) {
         Message message = new Message();
-        message.setTeacherId(teacherId);
-        message.setType(3); // 培训通知类型
+        message.setReceiverId(teacherId);
+        message.setType(MessageType.TRAINING);
         message.setTitle("培训通知");
         message.setContent(String.format("您有新的培训任务：%s，开始时间：%s",
                 trainingTitle, startTime.toString()));
@@ -147,8 +149,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         List<Message> messages = new ArrayList<>();
         teacherIds.forEach(teacherId -> {
             Message message = new Message();
-            message.setTeacherId(teacherId);
-            message.setType(1); // 紧急通知类型
+            message.setReceiverId(teacherId);
+            message.setType(MessageType.SYSTEM);
             message.setTitle(title);
             message.setContent(content);
             messages.add(message);
@@ -162,8 +164,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
         List<Message> messages = new ArrayList<>();
         teacherIds.forEach(teacherId -> {
             Message message = new Message();
-            message.setTeacherId(teacherId);
-            message.setType(4); // 系统通知类型
+            message.setReceiverId(teacherId);
+            message.setType(MessageType.NOTIFICATION);
             message.setTitle(title);
             message.setContent(content);
             messages.add(message);

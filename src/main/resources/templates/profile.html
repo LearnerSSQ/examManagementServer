@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head>
+    <meta charset="UTF-8">
+    <title>个人信息 - 考务管理系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <link rel="stylesheet" th:href="@{/css/nav.css}">
+    <link rel="stylesheet" th:href="@{/css/profile.css}">
+</head>
+
+<body>
+    <div class="background"></div>
+    <div class="stars"></div>
+
+    <!-- 引入导航栏 -->
+    <div th:replace="fragments/nav :: nav"></div>
+
+    <div class="main-content">
+        <div class="profile-container" th:if="${teacher != null}">
+            <!-- 个人信息头部 -->
+            <div class="profile-header">
+                <div class="profile-avatar" th:text="${#strings.substring(teacher.name, 0, 1)}">姓</div>
+                <h1 class="profile-name" th:text="${teacher.name}">教师姓名</h1>
+                <div class="profile-role" th:text="${teacher.role}">角色</div>
+            </div>
+
+            <!-- 统计数据 -->
+            <div class="profile-stats">
+                <div class="stat-card">
+                    <div class="stat-value"
+                        th:text="${invigilationStats != null and invigilationStats.get('totalRecords') != null} ? ${invigilationStats.get('totalRecords')} : '0'">
+                        0</div>
+                    <div class="stat-label">监考次数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value"
+                        th:text="${invigilationStats != null and invigilationStats.get('averageScore') != null} ? ${#numbers.formatDecimal(invigilationStats.get('averageScore'), 1, 1)} : '0.0'">
+                        0.0
+                    </div>
+                    <div class="stat-label">平均评分</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value"
+                        th:text="${trainingCompletion != null and trainingCompletion.get('completionRate') != null} ? ${#numbers.formatPercent(trainingCompletion.get('completionRate'), 1, 0)} : '0%'">
+                        0%
+                    </div>
+                    <div class="stat-label">培训完成率</div>
+                </div>
+            </div>
+
+            <!-- 详细信息部分 -->
+            <div class="profile-sections">
+                <!-- 基本信息 -->
+                <div class="profile-section">
+                    <div class="section-header">
+                        <h2 class="section-title">基本信息</h2>
+                        <button class="edit-button" onclick="openEditModal()">
+                            <i class="fas fa-edit"></i> 编辑
+                        </button>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">部门</div>
+                            <div class="info-value" th:text="${teacher.department}">-</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">职称</div>
+                            <div class="info-value" th:text="${teacher.title}">-</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">邮箱</div>
+                            <div class="info-value" th:text="${teacher.email}">-</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">手机</div>
+                            <div class="info-value" th:text="${teacher.phone}">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 监考历史 -->
+                <div class="profile-section">
+                    <div class="section-header">
+                        <h2 class="section-title">监考历史</h2>
+                    </div>
+                    <div class="timeline">
+                        <div th:if="${#lists.isEmpty(invigilationHistory)}" class="empty-message">
+                            暂无监考记录
+                        </div>
+                        <div th:each="record : ${invigilationHistory}" class="timeline-item">
+                            <div class="timeline-date" th:text="${#temporals.format(record.examStart, 'yyyy-MM-dd')}">
+                                2024-01-01</div>
+                            <div class="timeline-content">
+                                <div class="timeline-title" th:text="${record.courseName}">课程名称</div>
+                                <div class="timeline-details">
+                                    <span th:text="${record.location}">考场</span>
+                                    <span th:if="${record.getScore() != null}"
+                                        th:text="'评分: ' + ${record.getScore()}">评分</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 工作量统计 -->
+                <div class="profile-section">
+                    <div class="section-header">
+                        <h2 class="section-title">工作量统计</h2>
+                    </div>
+                    <div class="workload-chart">
+                        <canvas id="workloadChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="error-message" th:if="${teacher == null}">
+            <p>无法获取个人信息，请确保您已登录并具有正确的权限。</p>
+            <a th:href="@{/login}" class="btn">返回登录</a>
+        </div>
+    </div>
+
+    <!-- 编辑信息模态框 -->
+    <div class="edit-modal" id="editModal" style="display: none;">
+        <div class="modal-content">
+            <h2>编辑个人信息</h2>
+            <form id="editForm">
+                <div class="form-group">
+                    <label for="phone">手机号码</label>
+                    <input type="tel" id="phone" name="phone" class="form-control" th:value="${teacher.phone}" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">邮箱地址</label>
+                    <input type="email" id="email" name="email" class="form-control" th:value="${teacher.email}"
+                        required>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">取消</button>
+                    <button type="button" class="btn btn-warning" onclick="showChangePasswordModal()">修改密码</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="edit-modal" id="changePasswordModal" style="display: none;">
+        <div class="modal-content">
+            <h2>修改密码</h2>
+            <form id="changePasswordForm">
+                <div class="form-group">
+                    <label for="oldPassword">当前密码</label>
+                    <input type="password" id="oldPassword" name="oldPassword" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码</label>
+                    <input type="password" id="newPassword" name="newPassword" class="form-control" required
+                        pattern="^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$" title="密码必须包含至少8个字符，至少1个字母和1个数字">
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">确认新密码</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" class="form-control" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">确认修改</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeChangePasswordModal()">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script th:inline="javascript">
+        // 工作量统计图表
+        const workloadData = /*[[${workloadStats}]]*/ {};
+        const ctx = document.getElementById('workloadChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(workloadData).map(month => month + '月'),
+                datasets: [{
+                    label: '监考次数',
+                    data: Object.values(workloadData),
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+
+        // 编辑模态框功能
+        function openEditModal() {
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        function showChangePasswordModal() {
+            document.getElementById('editModal').style.display = 'none';
+            document.getElementById('changePasswordModal').style.display = 'flex';
+        }
+
+        function closeChangePasswordModal() {
+            document.getElementById('changePasswordModal').style.display = 'none';
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        document.getElementById('editForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const formData = {
+                phone: document.getElementById('phone').value,
+                email: document.getElementById('email').value
+            };
+
+            fetch('/api/profile/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        alert('个人信息更新成功');
+                        closeEditModal();
+                        location.reload();
+                    } else {
+                        alert(data.message || '更新失败，请重试');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('更新失败，请重试');
+                });
+        });
+
+        document.getElementById('changePasswordForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (newPassword !== confirmPassword) {
+                alert('两次输入的新密码不一致');
+                return;
+            }
+
+            const formData = {
+                oldPassword: document.getElementById('oldPassword').value,
+                newPassword: newPassword
+            };
+
+            fetch('/api/profile/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        alert('密码修改成功，请重新登录');
+                        window.location.href = '/logout';
+                    } else {
+                        alert(data.message || '密码修改失败，请重试');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('密码修改失败，请重试');
+                });
+        });
+
+        // 点击模态框外部关闭模态框
+        window.onclick = function (event) {
+            if (event.target.className === 'edit-modal') {
+                event.target.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+
+</html>

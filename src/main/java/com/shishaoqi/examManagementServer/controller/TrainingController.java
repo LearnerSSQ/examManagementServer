@@ -1,8 +1,8 @@
 package com.shishaoqi.examManagementServer.controller;
 
 import com.shishaoqi.examManagementServer.common.Result;
-import com.shishaoqi.examManagementServer.entity.TrainingMaterial;
-import com.shishaoqi.examManagementServer.entity.TrainingRecord;
+import com.shishaoqi.examManagementServer.entity.training.TrainingMaterial;
+import com.shishaoqi.examManagementServer.entity.training.TrainingRecord;
 import com.shishaoqi.examManagementServer.service.TrainingMaterialService;
 import com.shishaoqi.examManagementServer.service.TrainingRecordService;
 import io.swagger.v3.oas.annotations.Operation;

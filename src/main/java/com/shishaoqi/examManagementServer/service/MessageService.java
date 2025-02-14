@@ -1,7 +1,8 @@
 package com.shishaoqi.examManagementServer.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.shishaoqi.examManagementServer.entity.Message;
+import com.shishaoqi.examManagementServer.entity.message.Message;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;

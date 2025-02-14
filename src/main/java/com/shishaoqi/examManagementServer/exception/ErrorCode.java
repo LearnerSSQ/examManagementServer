@@ -5,8 +5,8 @@ import lombok.Getter;
 @Getter
 public enum ErrorCode {
     // 通用错误码
-    SUCCESS(200, "操作成功"),
-    SYSTEM_ERROR(500, "系统错误"),
+    SUCCESS(200, "成功"),
+    SYSTEM_ERROR(5000, "系统错误"),
     PARAM_ERROR(400, "参数错误"),
     UNAUTHORIZED(401, "未授权"),
     FORBIDDEN(403, "禁止访问"),
@@ -14,10 +14,13 @@ public enum ErrorCode {
     OPERATION_NOT_ALLOWED(403, "操作不允许"),
 
     // 用户相关错误码 (1000-1999)
-    USER_NOT_FOUND(1000, "用户不存在"),
-    USER_ALREADY_EXISTS(1001, "用户已存在"),
-    PASSWORD_ERROR(1002, "密码错误"),
-    ACCOUNT_DISABLED(1003, "账号已禁用"),
+    USER_NOT_FOUND(1001, "用户不存在"),
+    USER_ALREADY_EXISTS(1002, "用户已存在"),
+    PASSWORD_ERROR(1003, "密码错误"),
+    ACCOUNT_DISABLED(1004, "账号已禁用"),
+    ACCOUNT_EXPIRED(1005, "账号已过期"),
+    TOKEN_EXPIRED(1006, "token已过期"),
+    TOKEN_INVALID(1007, "token无效"),
 
     // 培训相关错误码 (2000-2999)
     TRAINING_NOT_FOUND(2000, "培训记录不存在"),
@@ -39,7 +42,16 @@ public enum ErrorCode {
     // 评价相关错误码 (5000-5999)
     EVALUATION_NOT_FOUND(5000, "评价不存在"),
     EVALUATION_ALREADY_EXISTS(5001, "评价已存在"),
-    INVALID_SCORE(5002, "无效的评分");
+    INVALID_SCORE(5002, "无效的评分"),
+
+    // 监考相关错误码
+    ASSIGNMENT_NOT_FOUND_CODE(4001, "监考安排不存在"),
+    ASSIGNMENT_ALREADY_CONFIRMED_CODE(4002, "监考已确认"),
+    ASSIGNMENT_ALREADY_CANCELED_CODE(4003, "监考已取消"),
+
+    // 培训相关错误码
+    TRAINING_NOT_FOUND_CODE(4101, "培训记录不存在"),
+    TRAINING_ALREADY_STARTED(4102, "培训已开始");
 
     private final int code;
     private final String message;
@@ -47,5 +59,13 @@ public enum ErrorCode {
     ErrorCode(int code, String message) {
         this.code = code;
         this.message = message;
+    }
+
+    public int getCode() {
+        return code;
+    }
+
+    public String getMessage() {
+        return message;
     }
 }

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head>
+    <meta charset="UTF-8">
+    <title>我的监考 - 考务管理系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <link rel="stylesheet" th:href="@{/css/nav.css}">
+    <link rel="stylesheet" th:href="@{/css/invigilation.css}">
+</head>
+
+<body>
+    <div class="background"></div>
+    <div class="stars"></div>
+
+    <!-- 引入导航栏 -->
+    <div th:replace="fragments/nav :: nav"></div>
+
+    <div class="main-content">
+        <div class="page-header">
+            <h1 class="gradient-text">我的监考</h1>
+            <div class="header-actions">
+                <div class="filter-bar">
+                    <select class="filter-select" id="statusFilter">
+                        <option value="">全部状态</option>
+                        <option value="PENDING">待确认</option>
+                        <option value="CONFIRMED">已确认</option>
+                        <option value="COMPLETED">已完成</option>
+                        <option value="CANCELLED">已取消</option>
+                    </select>
+                    <div class="date-range-container">
+                        <input type="date" class="date-filter" id="startDate" th:value="${param.startDate}">
+                        <input type="date" class="date-filter" id="endDate" th:value="${param.endDate}">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="invigilation-grid">
+            <!-- 监考卡片模板 -->
+            <div th:each="assignment : ${assignments}" class="invigilation-card">
+                <div class="invigilation-header">
+                    <div class="exam-name" th:text="${assignment.courseName}">考试名称</div>
+                    <div class="status-badge" th:classappend="${'status-' + assignment.status.name().toLowerCase()}"
+                        th:text="${assignment.status.description}">状态</div>
+                </div>
+                <div class="invigilation-info">
+                    <p><i class="fas fa-map-marker-alt"></i> <span th:text="${assignment.location}">考场地点</span></p>
+                    <p><i class="fas fa-calendar-alt"></i> <span
+                            th:text="${#temporals.format(assignment.examStart, 'yyyy-MM-dd HH:mm')}">开始时间</span></p>
+                    <p><i class="fas fa-clock"></i> <span
+                            th:with="duration=${T(java.time.Duration).between(assignment.examStart, assignment.examEnd)}"
+                            th:text="${duration.toMinutes() + '分钟'}">考试时长</span>
+                    </p>
+                </div>
+                <div class="invigilation-actions">
+                    <button th:if="${assignment.status.name() == 'PENDING'}" class="btn btn-primary"
+                        th:onclick="'confirmAssignment(' + ${assignment.assignmentId} + ')'">
+                        <i class="fas fa-check"></i> 确认
+                    </button>
+                    <button th:if="${assignment.status.name() == 'PENDING'}" class="btn btn-danger"
+                        th:onclick="'cancelAssignment(' + ${assignment.assignmentId} + ')'">
+                        <i class="fas fa-times"></i> 取消
+                    </button>
+                    <button th:if="${assignment.status.name() == 'CONFIRMED'}" class="btn btn-info" disabled>
+                        <i class="fas fa-check-circle"></i> 已确认
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function confirmAssignment(assignmentId) {
+            if (confirm('确定接受此监考任务吗？')) {
+                fetch(`/api/assignments/my/confirm/${assignmentId}`, {
+                    method: 'POST'
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.code === 200) {
+                            location.reload();
+                        } else {
+                            alert(data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('操作失败，请重试');
+                    });
+            }
+        }
+
+        function cancelAssignment(assignmentId) {
+            if (confirm('确定取消此监考任务吗？')) {
+                fetch(`/api/assignments/my/cancel/${assignmentId}`, {
+                    method: 'POST'
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.code === 200) {
+                            location.reload();
+                        } else {
+                            alert(data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('操作失败，请重试');
+                    });
+            }
+        }
+
+        // 筛选功能
+        document.getElementById('statusFilter').addEventListener('change', filterAssignments);
+        document.getElementById('startDate').addEventListener('change', handleDateChange);
+        document.getElementById('endDate').addEventListener('change', handleDateChange);
+
+        // 初始化日期选择器的值
+        window.onload = function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            const status = urlParams.get('status');
+            const startDate = urlParams.get('startDate');
+            const endDate = urlParams.get('endDate');
+
+            if (status) {
+                document.getElementById('statusFilter').value = status;
+            }
+            if (startDate) {
+                document.getElementById('startDate').value = startDate;
+            }
+            if (endDate) {
+                document.getElementById('endDate').value = endDate;
+            }
+        }
+
+        function handleDateChange(event) {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            // 确保结束日期不早于开始日期
+            if (startDate && endDate && endDate < startDate) {
+                if (event.target.id === 'endDate') {
+                    document.getElementById('endDate').value = startDate;
+                } else {
+                    document.getElementById('startDate').value = endDate;
+                }
+            }
+            filterAssignments();
+        }
+
+        function filterAssignments() {
+            const status = document.getElementById('statusFilter').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            let url = '/api/assignments/my';
+            const params = new URLSearchParams();
+
+            if (status) params.append('status', status);
+            if (startDate) params.append('startDate', startDate);
+            if (endDate) params.append('endDate', endDate);
+
+            if (params.toString()) {
+                url += '?' + params.toString();
+            }
+
+            window.location.href = url;
+        }
+    </script>
+</body>
+
+</html>

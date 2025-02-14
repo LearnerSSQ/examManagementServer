@@ -1,9 +1,18 @@
-package com.shishaoqi.examManagementServer.entity;
+package com.shishaoqi.examManagementServer.entity.invigilation;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.time.LocalDateTime;
 
+/**
+ * 监考安排实体类
+ * 
+ * 该类用于管理教师的监考任务安排，包括考试信息、监考角色和状态等。
+ * 监考角色分为主监考和副监考，状态包括待确认、已确认、已完成和已取消。
+ * 
+ * @author shishaoqi
+ * @since 2024-01-01
+ */
 @Data
 @TableName("invigilator_assignment")
 public class InvigilatorAssignment {
@@ -45,16 +54,16 @@ public class InvigilatorAssignment {
     private String location;
 
     /**
-     * 监考角色：0=主监考, 1=副监考
+     * 监考角色
      */
     @TableField("role")
-    private Integer role;
+    private InvigilatorAssignmentRole role;
 
     /**
-     * 状态：0=未确认, 1=已确认, 2=已取消
+     * 监考任务状态
      */
     @TableField(value = "status", fill = FieldFill.INSERT)
-    private Integer status;
+    private InvigilatorAssignmentStatus status;
 
     /**
      * 分配时间

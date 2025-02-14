@@ -1,7 +1,8 @@
 package com.shishaoqi.examManagementServer.repository;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.shishaoqi.examManagementServer.entity.Evaluation;
+import com.shishaoqi.examManagementServer.entity.invigilation.Evaluation;
+
 import org.apache.ibatis.annotations.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;

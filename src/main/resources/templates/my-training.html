@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head>
+    <meta charset="UTF-8">
+    <title>我的培训 - 考务管理系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <link rel="stylesheet" th:href="@{/css/nav.css}">
+    <link rel="stylesheet" th:href="@{/css/training.css}">
+</head>
+
+<body>
+    <div class="background"></div>
+    <div class="stars"></div>
+
+    <!-- 引入导航栏 -->
+    <div th:replace="fragments/nav :: nav"></div>
+
+    <div class="main-content">
+        <div class="page-header">
+            <h1 class="gradient-text">我的培训</h1>
+            <div class="header-actions">
+                <div class="filter-bar">
+                    <select class="filter-select" id="statusFilter">
+                        <option value="">全部状态</option>
+                        <option value="NOT_STARTED">未开始</option>
+                        <option value="IN_PROGRESS">进行中</option>
+                        <option value="COMPLETED">已完成</option>
+                        <option value="EXPIRED">已过期</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="training-grid">
+            <!-- 培训卡片模板 -->
+            <div th:each="training : ${trainings}" class="training-card">
+                <div class="training-content">
+                    <h3 class="training-title"
+                        th:with="material=${@trainingMaterialServiceImpl.getById(training.materialId)}"
+                        th:text="${material != null ? material.title : '未知培训'}">培训名称</h3>
+                    <div class="training-meta">
+                        <span><i class="fas fa-clock"></i> <span
+                                th:with="material=${@trainingMaterialServiceImpl.getById(training.materialId)}"
+                                th:text="${material != null ? material.duration + '分钟' : '未知时长'}">培训时长</span></span>
+                        <span><i class="fas fa-chalkboard-teacher"></i> <span
+                                th:with="material=${@trainingMaterialServiceImpl.getById(training.materialId)}"
+                                th:text="${material != null ? material.type.description : '未知类型'}">培训类型</span></span>
+                    </div>
+                    <p class="training-description"
+                        th:with="material=${@trainingMaterialServiceImpl.getById(training.materialId)}"
+                        th:text="${material != null ? material.description : training.remarks}">培训描述
+                    </p>
+                    <div class="training-footer">
+                        <div class="training-status" th:classappend="${'status-' + training.status.value.toLowerCase()}"
+                            th:text="${training.status.description}">状态</div>
+                        <div class="training-progress"
+                            th:if="${training.status == T(com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus).IN_PROGRESS}">
+                            <div class="progress-bar">
+                                <div class="progress-fill" th:style="'width: ' + ${training.progress} + '%'"></div>
+                            </div>
+                            <span th:text="${training.progress + '%'}">0%</span>
+                        </div>
+                    </div>
+                    <div class="training-actions">
+                        <button
+                            th:if="${training.status == T(com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus).NOT_STARTED}"
+                            class="btn btn-primary" th:onclick="'startTraining(' + ${training.recordId} + ')'">
+                            <i class="fas fa-play"></i> 开始学习
+                        </button>
+                        <button
+                            th:if="${training.status == T(com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus).IN_PROGRESS}"
+                            class="btn btn-primary" th:onclick="'continueTraining(' + ${training.recordId} + ')'">
+                            <i class="fas fa-forward"></i> 继续学习
+                        </button>
+                        <button
+                            th:if="${training.status == T(com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus).COMPLETED}"
+                            class="btn btn-info" disabled>
+                            <i class="fas fa-check-circle"></i> 已完成
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function startTraining(recordId) {
+            fetch(`/api/training/my/start/${recordId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        location.reload();
+                    } else {
+                        alert(data.message || '操作失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('操作失败，请重试');
+                });
+        }
+
+        function continueTraining(recordId) {
+            window.location.href = `/api/training/my/learn/${recordId}`;
+        }
+
+        // 筛选功能
+        document.getElementById('statusFilter').addEventListener('change', function () {
+            const status = this.value;
+            window.location.href = `/api/training/my${status ? '?status=' + status : ''}`;
+        });
+
+        // 初始化状态筛选器
+        window.addEventListener('load', function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            const status = urlParams.get('status');
+            if (status) {
+                document.getElementById('statusFilter').value = status;
+            }
+        });
+    </script>
+</body>
+
+</html>

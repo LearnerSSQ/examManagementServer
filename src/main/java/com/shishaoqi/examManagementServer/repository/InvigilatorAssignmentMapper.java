@@ -1,7 +1,9 @@
 package com.shishaoqi.examManagementServer.repository;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.shishaoqi.examManagementServer.entity.InvigilatorAssignment;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignment;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignmentStatus;
+
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Update;
 import org.apache.ibatis.annotations.Select;
@@ -16,13 +18,13 @@ public interface InvigilatorAssignmentMapper extends BaseMapper<InvigilatorAssig
          * 更新监考安排状态
          */
         @Update("UPDATE invigilator_assignment SET status = #{status}, confirm_time = #{confirmTime} WHERE assignment_id = #{assignmentId}")
-        int updateStatus(@Param("assignmentId") Long assignmentId, @Param("status") Integer status,
+        int updateStatus(@Param("assignmentId") Long assignmentId, @Param("status") InvigilatorAssignmentStatus status,
                         @Param("confirmTime") LocalDateTime confirmTime);
 
         /**
          * 取消监考安排
          */
-        @Update("UPDATE invigilator_assignment SET status = 2 WHERE assignment_id = #{assignmentId}")
+        @Update("UPDATE invigilator_assignment SET status = 'CANCELLED' WHERE assignment_id = #{assignmentId}")
         int cancelAssignment(@Param("assignmentId") Long assignmentId);
 
         /**

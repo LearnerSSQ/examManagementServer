@@ -2,8 +2,10 @@ package com.shishaoqi.examManagementServer.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.shishaoqi.examManagementServer.entity.InvigilationRecord;
-import com.shishaoqi.examManagementServer.entity.InvigilatorAssignment;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilationRecord;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilationRecordType;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignment;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignmentStatus;
 import com.shishaoqi.examManagementServer.exception.BusinessException;
 import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.InvigilationRecordMapper;
@@ -33,11 +35,6 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
         implements InvigilationRecordService {
 
     private static final Logger log = LoggerFactory.getLogger(InvigilationRecordServiceImpl.class);
-
-    // 记录类型常量
-    public static final int RECORD_TYPE_SIGN_IN = 1;
-    public static final int RECORD_TYPE_EXCEPTION = 2;
-    public static final int RECORD_TYPE_NOTE = 3;
 
     @Autowired
     private InvigilatorAssignmentMapper assignmentMapper;
@@ -78,7 +75,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
         log.info("获取签到记录，监考安排ID：{}", assignmentId);
         LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(InvigilationRecord::getAssignmentId, assignmentId)
-                .eq(InvigilationRecord::getType, RECORD_TYPE_SIGN_IN)
+                .eq(InvigilationRecord::getType, InvigilationRecordType.SIGN_IN)
                 .orderByDesc(InvigilationRecord::getCreateTime)
                 .last("LIMIT 1");
 
@@ -100,7 +97,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
         log.info("获取异常记录列表，监考安排ID：{}", assignmentId);
         LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(InvigilationRecord::getAssignmentId, assignmentId)
-                .eq(InvigilationRecord::getType, RECORD_TYPE_EXCEPTION)
+                .eq(InvigilationRecord::getType, InvigilationRecordType.INCIDENT)
                 .orderByDesc(InvigilationRecord::getCreateTime);
 
         List<InvigilationRecord> records = list(wrapper);
@@ -121,7 +118,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
         log.info("检查签到状态，监考安排ID：{}", assignmentId);
         LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(InvigilationRecord::getAssignmentId, assignmentId)
-                .eq(InvigilationRecord::getType, RECORD_TYPE_SIGN_IN);
+                .eq(InvigilationRecord::getType, InvigilationRecordType.SIGN_IN);
 
         long count = count(wrapper);
         log.info("签到状态检查完成，监考安排ID：{}，是否已签到：{}", assignmentId, count > 0);
@@ -141,7 +138,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
         log.info("统计异常记录数量，监考安排ID：{}", assignmentId);
         LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(InvigilationRecord::getAssignmentId, assignmentId)
-                .eq(InvigilationRecord::getType, RECORD_TYPE_EXCEPTION);
+                .eq(InvigilationRecord::getType, InvigilationRecordType.INCIDENT);
 
         long count = count(wrapper);
         log.info("异常记录统计完成，监考安排ID：{}，异常记录数量：{}", assignmentId, count);
@@ -156,7 +153,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
         validateAssignment(record.getAssignmentId(), "创建监考记录");
 
         // 检查签到记录的唯一性
-        if (record.getType() == RECORD_TYPE_SIGN_IN && hasSignedIn(record.getAssignmentId())) {
+        if (record.getType() == InvigilationRecordType.SIGN_IN && hasSignedIn(record.getAssignmentId())) {
             log.error("创建监考记录失败：已存在签到记录，安排ID：{}", record.getAssignmentId());
             throw new BusinessException(ErrorCode.PARAM_ERROR.getCode(), "已存在签到记录");
         }
@@ -184,13 +181,9 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
             log.error("监考记录验证失败：记录类型为空");
             throw new BusinessException(ErrorCode.PARAM_ERROR);
         }
-        if (record.getType() < RECORD_TYPE_SIGN_IN || record.getType() > RECORD_TYPE_NOTE) {
-            log.error("监考记录验证失败：无效的记录类型：{}", record.getType());
-            throw new BusinessException(ErrorCode.PARAM_ERROR.getCode(), "无效的记录类型");
-        }
-        if (record.getDescription() == null || record.getDescription().trim().isEmpty()) {
-            log.error("监考记录验证失败：记录描述为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR.getCode(), "记录描述不能为空");
+        if (record.getContent() == null || record.getContent().trim().isEmpty()) {
+            log.error("监考记录验证失败：记录内容为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR.getCode(), "记录内容不能为空");
         }
     }
 
@@ -221,10 +214,10 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
         }
 
         // 如果是签到记录，检查唯一性（排除自身）
-        if (record.getType() == 1) {
+        if (record.getType() == InvigilationRecordType.SIGN_IN) {
             LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
             wrapper.eq(InvigilationRecord::getAssignmentId, record.getAssignmentId())
-                    .eq(InvigilationRecord::getType, 1)
+                    .eq(InvigilationRecord::getType, InvigilationRecordType.SIGN_IN)
                     .ne(InvigilationRecord::getRecordId, record.getRecordId());
             if (count(wrapper) > 0) {
                 log.error("更新监考记录失败：已存在其他签到记录，安排ID：{}", record.getAssignmentId());
@@ -282,7 +275,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
         log.info("获取时间范围内的异常记录，监考安排ID：{}，时间范围：{} 至 {}", assignmentId, startTime, endTime);
         LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(InvigilationRecord::getAssignmentId, assignmentId)
-                .eq(InvigilationRecord::getType, 2)
+                .eq(InvigilationRecord::getType, InvigilationRecordType.INCIDENT)
                 .between(InvigilationRecord::getCreateTime, startTime, endTime)
                 .orderByDesc(InvigilationRecord::getCreateTime);
 
@@ -312,7 +305,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
         log.info("获取最近的异常记录，监考安排ID：{}，限制数量：{}", assignmentId, limit);
         LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(InvigilationRecord::getAssignmentId, assignmentId)
-                .eq(InvigilationRecord::getType, 2)
+                .eq(InvigilationRecord::getType, InvigilationRecordType.INCIDENT)
                 .orderByDesc(InvigilationRecord::getCreateTime)
                 .last("LIMIT " + limit);
 
@@ -393,7 +386,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
 
         // 检查签到记录的唯一性
         for (InvigilationRecord record : records) {
-            if (record.getType() == 1 && hasSignedIn(record.getAssignmentId())) {
+            if (record.getType() == InvigilationRecordType.SIGN_IN && hasSignedIn(record.getAssignmentId())) {
                 log.error("批量创建监考记录失败：监考安排已存在签到记录，安排ID：{}", record.getAssignmentId());
                 throw new BusinessException(ErrorCode.PARAM_ERROR.getCode(), "监考安排已存在签到记录");
             }
@@ -412,11 +405,6 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
             throw new BusinessException(ErrorCode.PARAM_ERROR);
         }
 
-        if (type < RECORD_TYPE_SIGN_IN || type > RECORD_TYPE_NOTE) {
-            log.error("获取指定类型的监考记录失败：无效的记录类型：{}", type);
-            throw new BusinessException(ErrorCode.PARAM_ERROR.getCode(), "无效的记录类型");
-        }
-
         // 验证监考安排是否存在
         InvigilatorAssignment assignment = assignmentMapper.selectById(assignmentId);
         if (assignment == null) {
@@ -427,7 +415,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
         log.info("获取指定类型的监考记录，监考安排ID：{}，记录类型：{}", assignmentId, type);
         LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(InvigilationRecord::getAssignmentId, assignmentId)
-                .eq(InvigilationRecord::getType, type)
+                .eq(InvigilationRecord::getType, InvigilationRecordType.values()[type])
                 .orderByDesc(InvigilationRecord::getCreateTime);
 
         List<InvigilationRecord> records = list(wrapper);
@@ -478,8 +466,8 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
 
         InvigilationRecord record = new InvigilationRecord();
         record.setAssignmentId(assignmentId);
-        record.setType(RECORD_TYPE_SIGN_IN);
-        record.setDescription("签到时间：" + signInTime);
+        record.setType(InvigilationRecordType.SIGN_IN);
+        record.setContent("签到时间：" + signInTime);
         record.setCreateTime(signInTime);
 
         save(record);
@@ -500,8 +488,8 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
 
         InvigilationRecord record = new InvigilationRecord();
         record.setAssignmentId(assignmentId);
-        record.setType(RECORD_TYPE_EXCEPTION);
-        record.setDescription(description);
+        record.setType(InvigilationRecordType.INCIDENT);
+        record.setContent(description);
         record.setCreateTime(LocalDateTime.now());
 
         save(record);
@@ -521,7 +509,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
 
         // 获取异常记录总数
         LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(InvigilationRecord::getType, RECORD_TYPE_EXCEPTION);
+        wrapper.eq(InvigilationRecord::getType, InvigilationRecordType.INCIDENT);
         long totalExceptions = count(wrapper);
         statistics.put("totalExceptions", totalExceptions);
 
@@ -562,7 +550,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
 
-        record.setDescription(record.getDescription() + "\n处理意见：" + handlerComment);
+        record.setContent(record.getContent() + "\n处理意见：" + handlerComment);
         boolean success = updateById(record);
         log.info("更新事件状态{}，记录ID：{}", success ? "成功" : "失败", recordId);
         return success;
@@ -613,7 +601,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
             data.put("recordId", record.getRecordId());
             data.put("assignmentId", record.getAssignmentId());
             data.put("type", record.getType());
-            data.put("description", record.getDescription());
+            data.put("content", record.getContent());
             data.put("createTime", record.getCreateTime());
             exportData.add(data);
         }
@@ -624,22 +612,44 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
 
     @Override
     public Map<String, Object> getTeacherInvigilationStats(Integer teacherId, int year) {
-        if (teacherId == null || year < 2000) {
-            log.error("获取教师监考统计失败：参数无效");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        log.info("获取教师监考统计，教师ID：{}，年份：{}", teacherId, year);
         Map<String, Object> stats = new HashMap<>();
 
+        // 获取指定年份的监考任务
         LocalDateTime startTime = LocalDateTime.of(year, 1, 1, 0, 0);
         LocalDateTime endTime = LocalDateTime.of(year, 12, 31, 23, 59);
 
-        // 获取监考记录总数
-        LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.between(InvigilationRecord::getCreateTime, startTime, endTime);
-        long totalRecords = count(wrapper);
+        // 获取已完成的监考任务
+        List<InvigilatorAssignment> assignments = assignmentService.getTeacherAssignmentsByTimeRange(
+                teacherId, startTime, endTime).stream()
+                .filter(a -> a.getStatus() == InvigilatorAssignmentStatus.COMPLETED)
+                .collect(Collectors.toList());
+
+        // 统计监考次数
+        int totalRecords = assignments.size();
         stats.put("totalRecords", totalRecords);
+
+        // 如果有监考任务，计算平均评分
+        if (!assignments.isEmpty()) {
+            // 获取所有已完成任务的ID
+            List<Long> assignmentIds = assignments.stream()
+                    .map(InvigilatorAssignment::getAssignmentId)
+                    .collect(Collectors.toList());
+
+            // 从评价表获取评分
+            List<Map<String, Object>> evaluations = baseMapper.getTeacherEvaluations(assignmentIds);
+
+            if (!evaluations.isEmpty()) {
+                double totalScore = evaluations.stream()
+                        .mapToDouble(e -> ((Number) e.get("score")).doubleValue())
+                        .sum();
+                double averageScore = totalScore / evaluations.size();
+                stats.put("averageScore", averageScore);
+            } else {
+                stats.put("averageScore", 0.0);
+            }
+        } else {
+            stats.put("averageScore", 0.0);
+        }
 
         return stats;
     }
@@ -657,8 +667,8 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
 
         InvigilationRecord record = new InvigilationRecord();
         record.setAssignmentId(assignmentId);
-        record.setType(RECORD_TYPE_NOTE);
-        record.setDescription("巡查结果：" + inspectionDetails.toString());
+        record.setType(InvigilationRecordType.NOTE);
+        record.setContent("巡查结果：" + inspectionDetails.toString());
         record.setCreateTime(LocalDateTime.now());
 
         boolean success = save(record);
@@ -670,7 +680,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
     public List<InvigilationRecord> getPendingExceptionEvents() {
         log.info("获取未处理的异常事件");
         LambdaQueryWrapper<InvigilationRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(InvigilationRecord::getType, RECORD_TYPE_EXCEPTION)
+        wrapper.eq(InvigilationRecord::getType, InvigilationRecordType.INCIDENT)
                 .orderByDesc(InvigilationRecord::getCreateTime);
 
         List<InvigilationRecord> records = list(wrapper);
@@ -748,7 +758,7 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
         long exceptionRecords = lambdaQuery()
                 .ge(InvigilationRecord::getCreateTime, startTime)
                 .le(InvigilationRecord::getCreateTime, endTime)
-                .eq(InvigilationRecord::getType, 2) // 2表示异常事件
+                .eq(InvigilationRecord::getType, InvigilationRecordType.INCIDENT) // 2表示异常事件
                 .count();
 
         // 获取监考教师数量

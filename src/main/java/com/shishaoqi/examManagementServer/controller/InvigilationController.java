@@ -1,8 +1,8 @@
 package com.shishaoqi.examManagementServer.controller;
 
 import com.shishaoqi.examManagementServer.common.Result;
-import com.shishaoqi.examManagementServer.entity.InvigilationRecord;
-import com.shishaoqi.examManagementServer.entity.InvigilatorAssignment;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilationRecord;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignment;
 import com.shishaoqi.examManagementServer.service.InvigilationRecordService;
 import com.shishaoqi.examManagementServer.service.InvigilatorAssignmentService;
 import io.swagger.v3.oas.annotations.Operation;

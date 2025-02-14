@@ -1,0 +1,322 @@
+.training-header {
+    margin-bottom: var(--spacing-xl);
+}
+
+.training-header h1 {
+    font-size: var(--font-size-xxl);
+    margin-bottom: var(--spacing-md);
+}
+
+.header-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+.filter-bar {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.filter-select {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 8px;
+    color: #e2e8f0;
+    padding: 0.5rem 2rem 0.5rem 1rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23e2e8f0'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.5rem center;
+    background-size: 1.5em;
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: rgba(148, 163, 184, 0.5);
+    box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.1);
+}
+
+.filter-select option {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 0.5rem;
+}
+
+.training-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.training-card {
+    background: rgba(30, 41, 59, 0.8);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.training-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.training-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.training-content {
+    padding: 1.5rem;
+}
+
+.training-title {
+    color: #e2e8f0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    line-height: 1.4;
+}
+
+.training-meta {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.training-meta span {
+    display: flex;
+    align-items: center;
+}
+
+.training-meta i {
+    margin-right: 0.5rem;
+    font-size: 1rem;
+    color: #64748b;
+}
+
+.training-description {
+    color: #94a3b8;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+.training-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.training-status {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.status-not_started {
+    background: rgba(99, 102, 241, 0.2);
+    color: #818cf8;
+}
+
+.status-in_progress {
+    background: rgba(234, 179, 8, 0.2);
+    color: #facc15;
+}
+
+.status-completed {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+.status-expired {
+    background: rgba(239, 68, 68, 0.2);
+    color: #f87171;
+}
+
+.training-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.progress-bar {
+    width: 100px;
+    height: 6px;
+    background: rgba(148, 163, 184, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #3b82f6;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.training-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.training-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.training-actions .btn i {
+    font-size: 1rem;
+}
+
+/* 培训详情模态框 */
+.training-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
+    z-index: 1000;
+}
+
+.modal-content {
+    position: relative;
+    background: var(--color-card-bg);
+    margin: 5% auto;
+    padding: var(--spacing-lg);
+    width: 90%;
+    max-width: 800px;
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--color-border);
+}
+
+.modal-header {
+    margin-bottom: var(--spacing-lg);
+    text-align: center;
+}
+
+.modal-title {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--spacing-sm);
+}
+
+.modal-meta {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.modal-body {
+    margin-bottom: var(--spacing-xl);
+}
+
+.content-section {
+    margin-bottom: var(--spacing-lg);
+}
+
+.section-title {
+    font-size: var(--font-size-lg);
+    color: var(--color-primary);
+    margin-bottom: var(--spacing-md);
+}
+
+.resource-list {
+    display: grid;
+    gap: var(--spacing-sm);
+}
+
+.resource-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--color-card-hover);
+    border-radius: var(--border-radius-sm);
+}
+
+.resource-icon {
+    color: var(--color-primary);
+}
+
+.resource-info {
+    flex: 1;
+}
+
+.resource-title {
+    margin-bottom: var(--spacing-xs);
+}
+
+.resource-meta {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+}
+
+@media (max-width: 768px) {
+    .header-actions {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    .filter-bar {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .filter-select {
+        width: 100%;
+    }
+
+    .training-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-content {
+        width: 95%;
+        margin: 10% auto;
+    }
+
+    .training-actions {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .training-actions .btn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .training-footer {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+}

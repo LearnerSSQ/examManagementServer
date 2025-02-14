@@ -1,7 +1,10 @@
 package com.shishaoqi.examManagementServer.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.shishaoqi.examManagementServer.entity.Teacher;
+import com.shishaoqi.examManagementServer.entity.teacher.Teacher;
+import com.shishaoqi.examManagementServer.entity.teacher.TeacherRole;
+import com.shishaoqi.examManagementServer.entity.teacher.TeacherStatus;
+
 import java.util.List;
 import java.util.Map;
 import java.time.LocalDateTime;
@@ -11,7 +14,7 @@ public interface TeacherService extends IService<Teacher> {
     /**
      * 添加教师
      */
-    void addTeacher(Teacher teacher);
+    boolean addTeacher(Teacher teacher);
 
     /**
      * 更新教师信息
@@ -47,10 +50,10 @@ public interface TeacherService extends IService<Teacher> {
      * 更新教师状态
      * 
      * @param teacherId 教师ID
-     * @param status    状态值
-     * @return 是否更新成功
+     * @param status    新状态
+     * @return 更新是否成功
      */
-    boolean updateStatus(Integer teacherId, Integer status);
+    boolean updateStatus(Integer teacherId, TeacherStatus status);
 
     /**
      * 更新教师最后登录时间
@@ -213,4 +216,53 @@ public interface TeacherService extends IService<Teacher> {
      * @return 是否匹配
      */
     boolean verifyPassword(String password, String hashedPassword);
+
+    /**
+     * 获取教师列表，支持搜索
+     * 
+     * @param search 搜索关键字
+     * @return 教师列表
+     */
+    List<Teacher> list(String search);
+
+    /**
+     * 更新教师角色
+     * 
+     * @param teacherId 教师ID
+     * @param role      新角色
+     * @return 是否更新成功
+     */
+    boolean updateRole(Integer teacherId, TeacherRole role);
+
+    /**
+     * 根据角色获取教师列表
+     * 
+     * @param role 教师角色
+     * @return 教师列表
+     */
+    List<Teacher> getTeachersByRole(TeacherRole role);
+
+    /**
+     * 检查教师是否具有指定角色
+     * 
+     * @param teacherId 教师ID
+     * @param role      要检查的角色
+     * @return 是否具有该角色
+     */
+    boolean hasRole(Integer teacherId, TeacherRole role);
+
+    /**
+     * 获取所有教师列表
+     * 
+     * @return 教师列表
+     */
+    List<Teacher> getAllTeachers();
+
+    /**
+     * 删除教师
+     * 
+     * @param teacherId 教师ID
+     * @return 是否删除成功
+     */
+    boolean deleteTeacher(Integer teacherId);
 }

@@ -1,7 +1,9 @@
 package com.shishaoqi.examManagementServer.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.shishaoqi.examManagementServer.entity.TrainingRecord;
+import com.shishaoqi.examManagementServer.entity.training.TrainingRecord;
+import com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -31,12 +33,12 @@ public interface TrainingRecordService extends IService<TrainingRecord> {
     /**
      * 更新培训成绩和状态
      */
-    boolean updateScore(Long recordId, Integer score, Integer status);
+    boolean updateScore(Long recordId, Integer score, TrainingRecordStatus status);
 
     /**
      * 更新学习进度
      */
-    boolean updateStudyProgress(Long recordId, Integer studyTime);
+    boolean updateProgress(Long recordId, Integer teacherId, Integer progress);
 
     /**
      * 验证是否达到规定学习时长
@@ -134,4 +136,56 @@ public interface TrainingRecordService extends IService<TrainingRecord> {
      * 获取培训统计信息
      */
     Map<String, Object> getTrainingStatistics(LocalDateTime startTime, LocalDateTime endTime);
+
+    /**
+     * 获取教师的培训记录列表
+     * 
+     * @param teacherId 教师ID
+     * @param status    状态筛选（可选）
+     * @return 培训记录列表
+     */
+    List<TrainingRecord> getTeacherTrainings(Integer teacherId, TrainingRecordStatus status);
+
+    /**
+     * 开始培训
+     * 
+     * @param recordId  培训记录ID
+     * @param teacherId 教师ID
+     */
+    void startTraining(Long recordId, Integer teacherId);
+
+    /**
+     * 获取培训记录详情
+     * 
+     * @param recordId  培训记录ID
+     * @param teacherId 教师ID
+     * @return 培训记录详情
+     */
+    TrainingRecord getTrainingRecord(Long recordId, Integer teacherId);
+
+    /**
+     * 获取指定时间范围内的培训统计数据
+     * 
+     * @param startDate 开始时间
+     * @param endDate   结束时间
+     * @return 培训统计数据，包含：
+     *         - activeCount: 进行中的培训数量
+     *         - completedCount: 已完成的培训数量
+     *         - totalCount: 总培训数量
+     *         - completionRate: 完成率
+     *         - inTrainingCount: 培训中的教师数量
+     */
+    Map<String, Object> getTrainingStatisticsByDateRange(LocalDateTime startDate, LocalDateTime endDate);
+
+    /**
+     * 获取教师的培训统计数据
+     * 
+     * @param teacherId 教师ID
+     * @return 培训统计数据，包含：
+     *         - pendingCount: 待完成的培训数量
+     *         - completedCount: 已完成的培训数量
+     *         - totalCount: 总培训数量
+     *         - completionRate: 完成率
+     */
+    Map<String, Object> getTeacherTrainingStatistics(Integer teacherId);
 }

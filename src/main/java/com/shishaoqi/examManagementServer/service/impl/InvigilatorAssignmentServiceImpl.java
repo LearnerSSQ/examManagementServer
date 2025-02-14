@@ -1,17 +1,21 @@
 package com.shishaoqi.examManagementServer.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.shishaoqi.examManagementServer.entity.InvigilatorAssignment;
-import com.shishaoqi.examManagementServer.entity.Teacher;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignment;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignmentStatus;
+import com.shishaoqi.examManagementServer.entity.teacher.Teacher;
 import com.shishaoqi.examManagementServer.exception.BusinessException;
 import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.InvigilatorAssignmentMapper;
 import com.shishaoqi.examManagementServer.service.InvigilatorAssignmentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -41,13 +45,14 @@ public class InvigilatorAssignmentServiceImpl extends ServiceImpl<InvigilatorAss
     }
 
     @Override
-    public List<InvigilatorAssignment> getTeacherAssignmentsByTimeRange(Integer teacherId, LocalDateTime startTime,
-            LocalDateTime endTime) {
+    public List<InvigilatorAssignment> getTeacherAssignmentsByTimeRange(Integer teacherId, LocalDateTime startDate,
+            LocalDateTime endDate) {
+        log.info("获取教师监考任务，教师ID：{}，时间范围：{} - {}", teacherId, startDate, endDate);
         return lambdaQuery()
                 .eq(InvigilatorAssignment::getTeacherId, teacherId)
-                .ge(InvigilatorAssignment::getExamStart, startTime)
-                .le(InvigilatorAssignment::getExamEnd, endTime)
-                .orderByDesc(InvigilatorAssignment::getExamStart)
+                .ge(InvigilatorAssignment::getExamStart, startDate)
+                .le(InvigilatorAssignment::getExamEnd, endDate)
+                .orderByAsc(InvigilatorAssignment::getExamStart)
                 .list();
     }
 
@@ -62,73 +67,44 @@ public class InvigilatorAssignmentServiceImpl extends ServiceImpl<InvigilatorAss
 
     @Override
     @Transactional
-    public boolean updateStatus(Long assignmentId, Integer status) {
+    public boolean updateStatus(Long assignmentId, InvigilatorAssignmentStatus status) {
         if (assignmentId == null || status == null) {
-            log.error("更新监考安排状态失败：参数为空，安排ID：{}，状态：{}", assignmentId, status);
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
+            log.error("更新监考安排状态失败：参数为空");
+            return false;
         }
 
-        log.info("开始更新监考安排状态，安排ID：{}，状态：{}", assignmentId, status);
         InvigilatorAssignment assignment = getById(assignmentId);
         if (assignment == null) {
-            log.error("监考安排不存在，安排ID：{}", assignmentId);
-            throw new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND);
-        }
-
-        if (status < 0 || status > 2) {
-            log.error("无效的状态值：{}", status);
-            throw new BusinessException(ErrorCode.PARAM_ERROR.getCode(), "无效的状态值");
-        }
-
-        if (assignment.getStatus() == 2) {
-            log.error("监考安排已取消，无法更新状态，安排ID：{}", assignmentId);
-            throw new BusinessException(ErrorCode.ASSIGNMENT_ALREADY_CANCELED);
-        }
-
-        // 检查是否已经确认
-        if (assignment.getStatus() == 1 && status == 1) {
-            log.error("监考安排已确认，无需重复确认，安排ID：{}", assignmentId);
-            throw new BusinessException(ErrorCode.ASSIGNMENT_ALREADY_CONFIRMED);
+            log.error("更新监考安排状态失败：监考安排不存在，ID={}", assignmentId);
+            return false;
         }
 
         assignment.setStatus(status);
         assignment.setConfirmTime(LocalDateTime.now());
-        boolean success = updateById(assignment);
-        log.info("更新监考安排状态{}，安排ID：{}", success ? "成功" : "失败", assignmentId);
-        return success;
+        return updateById(assignment);
     }
 
     @Override
     @Transactional
     public boolean cancelAssignment(Long assignmentId) {
         if (assignmentId == null) {
-            log.error("取消监考安排失败：安排ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
+            log.error("取消监考安排失败：监考安排ID为空");
+            return false;
         }
 
-        log.info("开始取消监考安排，安排ID：{}", assignmentId);
         InvigilatorAssignment assignment = getById(assignmentId);
         if (assignment == null) {
-            log.error("监考安排不存在，安排ID：{}", assignmentId);
-            throw new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND);
+            log.error("取消监考安排失败：监考安排不存在，ID={}", assignmentId);
+            return false;
         }
 
-        if (assignment.getStatus() == 2) {
-            log.error("监考安排已经取消，安排ID：{}", assignmentId);
-            throw new BusinessException(ErrorCode.ASSIGNMENT_ALREADY_CANCELED);
+        if (assignment.getStatus() == InvigilatorAssignmentStatus.COMPLETED) {
+            log.error("取消监考安排失败：监考已完成，不能取消，ID={}", assignmentId);
+            return false;
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        if (assignment.getExamStart().isBefore(now)) {
-            log.error("监考已开始，无法取消，安排ID：{}，开始时间：{}", assignmentId, assignment.getExamStart());
-            throw new BusinessException(ErrorCode.FORBIDDEN.getCode(), "监考已开始，无法取消");
-        }
-
-        assignment.setStatus(2);
-        assignment.setConfirmTime(now);
-        boolean success = updateById(assignment);
-        log.info("取消监考安排{}，安排ID：{}", success ? "成功" : "失败", assignmentId);
-        return success;
+        assignment.setStatus(InvigilatorAssignmentStatus.CANCELLED);
+        return updateById(assignment);
     }
 
     @Override
@@ -150,7 +126,7 @@ public class InvigilatorAssignmentServiceImpl extends ServiceImpl<InvigilatorAss
         }
 
         // 设置初始值
-        assignment.setStatus(0);
+        assignment.setStatus(InvigilatorAssignmentStatus.PENDING);
         assignment.setAssignTime(LocalDateTime.now());
 
         boolean success = super.save(assignment);
@@ -196,7 +172,7 @@ public class InvigilatorAssignmentServiceImpl extends ServiceImpl<InvigilatorAss
 
         LambdaQueryWrapper<InvigilatorAssignment> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(InvigilatorAssignment::getTeacherId, newAssignment.getTeacherId())
-                .ne(InvigilatorAssignment::getStatus, 2) // 排除已取消的安排
+                .ne(InvigilatorAssignment::getStatus, InvigilatorAssignmentStatus.CANCELLED) // 排除已取消的安排
                 .and(w -> w
                         .between(InvigilatorAssignment::getExamStart, newAssignment.getExamStart(),
                                 newAssignment.getExamEnd())
@@ -219,7 +195,7 @@ public class InvigilatorAssignmentServiceImpl extends ServiceImpl<InvigilatorAss
             throw new BusinessException(ErrorCode.PARAM_ERROR);
         }
         return update().in("assignment_id", assignmentIds)
-                .set("status", 1)
+                .set("status", InvigilatorAssignmentStatus.CONFIRMED.getValue())
                 .update();
     }
 
@@ -308,5 +284,183 @@ public class InvigilatorAssignmentServiceImpl extends ServiceImpl<InvigilatorAss
         Map<String, Object> statistics = new HashMap<>();
         // 考试监考安排统计的具体实现需要根据业务规则来完成
         return statistics;
+    }
+
+    @Override
+    public List<InvigilatorAssignment> getTeacherAssignments(Integer teacherId, InvigilatorAssignmentStatus status,
+            String startDate, String endDate) {
+        // 先执行一次状态更新
+        autoUpdateAssignmentStatus();
+
+        // 构建查询条件
+        LambdaQueryWrapper<InvigilatorAssignment> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(InvigilatorAssignment::getTeacherId, teacherId);
+
+        if (status != null) {
+            wrapper.eq(InvigilatorAssignment::getStatus, status);
+        }
+
+        if (StringUtils.hasText(startDate) && StringUtils.hasText(endDate)) {
+            wrapper.between(InvigilatorAssignment::getExamStart,
+                    LocalDateTime.parse(startDate + "T00:00:00"),
+                    LocalDateTime.parse(endDate + "T23:59:59"));
+        }
+
+        wrapper.orderByDesc(InvigilatorAssignment::getExamStart);
+        return list(wrapper);
+    }
+
+    @Override
+    @Transactional
+    public void confirmAssignment(Long assignmentId, Integer teacherId) {
+        try {
+            log.debug("教师{}确认监考任务{}", teacherId, assignmentId);
+
+            InvigilatorAssignment assignment = getById(assignmentId);
+            if (assignment == null) {
+                throw new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND);
+            }
+
+            if (!assignment.getTeacherId().equals(teacherId)) {
+                throw new BusinessException(ErrorCode.OPERATION_NOT_ALLOWED, "无权操作此监考任务");
+            }
+
+            if (assignment.getStatus() != InvigilatorAssignmentStatus.PENDING) {
+                throw new BusinessException(ErrorCode.ASSIGNMENT_ALREADY_CONFIRMED);
+            }
+
+            assignment.setStatus(InvigilatorAssignmentStatus.CONFIRMED);
+            assignment.setConfirmTime(LocalDateTime.now());
+            updateById(assignment);
+
+            log.info("教师{}成功确认监考任务{}", teacherId, assignmentId);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("确认监考任务时发生错误", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "确认监考任务失败");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void cancelAssignment(Long assignmentId, Integer teacherId) {
+        try {
+            log.debug("教师{}取消监考任务{}", teacherId, assignmentId);
+
+            InvigilatorAssignment assignment = getById(assignmentId);
+            if (assignment == null) {
+                throw new BusinessException(ErrorCode.ASSIGNMENT_NOT_FOUND);
+            }
+
+            if (!assignment.getTeacherId().equals(teacherId)) {
+                throw new BusinessException(ErrorCode.OPERATION_NOT_ALLOWED, "无权操作此监考任务");
+            }
+
+            if (assignment.getStatus() != InvigilatorAssignmentStatus.PENDING) {
+                throw new BusinessException(ErrorCode.ASSIGNMENT_ALREADY_CANCELED);
+            }
+
+            assignment.setStatus(InvigilatorAssignmentStatus.CANCELLED);
+            updateById(assignment);
+
+            log.info("教师{}成功取消监考任务{}", teacherId, assignmentId);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("取消监考任务时发生错误", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "取消监考任务失败");
+        }
+    }
+
+    @Override
+    public List<InvigilatorAssignment> getTeacherAssignmentsByDateRange(Integer teacherId, LocalDateTime startDate,
+            LocalDateTime endDate) {
+        return lambdaQuery()
+                .eq(InvigilatorAssignment::getTeacherId, teacherId)
+                .ge(InvigilatorAssignment::getExamStart, startDate)
+                .le(InvigilatorAssignment::getExamEnd, endDate)
+                .orderByDesc(InvigilatorAssignment::getExamStart)
+                .list();
+    }
+
+    @Override
+    public Map<String, Object> getAssignmentStatisticsByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
+        Map<String, Object> stats = new HashMap<>();
+
+        // 获取时间范围内的所有监考任务
+        List<InvigilatorAssignment> assignments = lambdaQuery()
+                .ge(InvigilatorAssignment::getExamStart, startDate)
+                .le(InvigilatorAssignment::getExamEnd, endDate)
+                .list();
+
+        // 统计各种状态的数量
+        long totalCount = assignments.size();
+        long pendingCount = assignments.stream()
+                .filter(a -> a.getStatus() == InvigilatorAssignmentStatus.PENDING)
+                .count();
+        long confirmedCount = assignments.stream()
+                .filter(a -> a.getStatus() == InvigilatorAssignmentStatus.CONFIRMED)
+                .count();
+        long completedCount = assignments.stream()
+                .filter(a -> a.getStatus() == InvigilatorAssignmentStatus.COMPLETED)
+                .count();
+
+        stats.put("totalCount", totalCount);
+        stats.put("pendingCount", pendingCount);
+        stats.put("confirmedCount", confirmedCount);
+        stats.put("completedCount", completedCount);
+        stats.put("startDate", startDate);
+        stats.put("endDate", endDate);
+
+        return stats;
+    }
+
+    @Override
+    public Map<String, Object> getTeacherWorkloadStats(Integer teacherId, LocalDateTime startDate,
+            LocalDateTime endDate) {
+        Map<String, Object> stats = new HashMap<>();
+
+        // 获取教师在指定时间范围内的监考任务
+        List<InvigilatorAssignment> assignments = getTeacherAssignmentsByTimeRange(teacherId, startDate, endDate);
+
+        // 统计各种状态的监考数量
+        stats.put("totalCount", assignments.size());
+        stats.put("pendingCount", assignments.stream()
+                .filter(a -> a.getStatus() == InvigilatorAssignmentStatus.PENDING)
+                .count());
+        stats.put("completedCount", assignments.stream()
+                .filter(a -> a.getStatus() == InvigilatorAssignmentStatus.COMPLETED)
+                .count());
+        stats.put("canceledCount", assignments.stream()
+                .filter(a -> a.getStatus() == InvigilatorAssignmentStatus.CANCELLED)
+                .count());
+
+        return stats;
+    }
+
+    /**
+     * 每5分钟执行一次状态更新
+     */
+    @Scheduled(cron = "0 */5 * * * *")
+    @Transactional
+    public void autoUpdateAssignmentStatus() {
+        LocalDateTime now = LocalDateTime.now();
+
+        // 更新已确认且已结束的监考为已完成
+        LambdaUpdateWrapper<InvigilatorAssignment> completedWrapper = new LambdaUpdateWrapper<>();
+        completedWrapper.eq(InvigilatorAssignment::getStatus, InvigilatorAssignmentStatus.CONFIRMED)
+                .lt(InvigilatorAssignment::getExamEnd, now)
+                .set(InvigilatorAssignment::getStatus, InvigilatorAssignmentStatus.COMPLETED);
+        update(null, completedWrapper);
+
+        // 更新未确认且已过期的监考为已取消
+        LambdaUpdateWrapper<InvigilatorAssignment> cancelledWrapper = new LambdaUpdateWrapper<>();
+        cancelledWrapper.eq(InvigilatorAssignment::getStatus, InvigilatorAssignmentStatus.PENDING)
+                .lt(InvigilatorAssignment::getExamStart, now)
+                .set(InvigilatorAssignment::getStatus, InvigilatorAssignmentStatus.CANCELLED);
+        update(null, cancelledWrapper);
+
+        log.info("已完成监考状态的自动更新");
     }
 }

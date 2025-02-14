@@ -1,7 +1,8 @@
 package com.shishaoqi.examManagementServer.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.shishaoqi.examManagementServer.entity.Evaluation;
+import com.shishaoqi.examManagementServer.entity.invigilation.Evaluation;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;

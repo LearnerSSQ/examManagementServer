@@ -1,11 +1,14 @@
 package com.shishaoqi.examManagementServer.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.shishaoqi.examManagementServer.entity.Evaluation;
-import com.shishaoqi.examManagementServer.entity.InvigilatorAssignment;
+import com.shishaoqi.examManagementServer.entity.invigilation.Evaluation;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignment;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignmentStatus;
+import com.shishaoqi.examManagementServer.entity.teacher.Teacher;
 import com.shishaoqi.examManagementServer.exception.BusinessException;
 import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.EvaluationMapper;
+import com.shishaoqi.examManagementServer.repository.TeacherMapper;
 import com.shishaoqi.examManagementServer.service.EvaluationService;
 import com.shishaoqi.examManagementServer.service.InvigilatorAssignmentService;
 import org.slf4j.Logger;
@@ -28,6 +31,9 @@ public class EvaluationServiceImpl extends ServiceImpl<EvaluationMapper, Evaluat
 
     @Autowired
     private InvigilatorAssignmentService assignmentService;
+
+    @Autowired
+    private TeacherMapper teacherMapper;
 
     @Override
     @Transactional
@@ -186,7 +192,54 @@ public class EvaluationServiceImpl extends ServiceImpl<EvaluationMapper, Evaluat
 
         // 获取所有教师的评价统计
         List<Map<String, Object>> excellentTeachers = new ArrayList<>();
-        // TODO: 实现获取优秀监考教师的逻辑
+
+        // 获取所有监考安排
+        List<InvigilatorAssignment> assignments = assignmentService.list();
+
+        // 按教师ID分组统计
+        Map<Integer, List<Evaluation>> teacherEvaluations = assignments.stream()
+                .map(assignment -> {
+                    List<Evaluation> evals = this.getByAssignmentId(assignment.getAssignmentId());
+                    return new AbstractMap.SimpleEntry<>(assignment.getTeacherId(), evals);
+                })
+                .filter(entry -> !entry.getValue().isEmpty())
+                .collect(Collectors.groupingBy(
+                        Map.Entry::getKey,
+                        Collectors.flatMapping(entry -> entry.getValue().stream(), Collectors.toList())));
+
+        // 筛选优秀教师
+        teacherEvaluations.forEach((teacherId, evaluations) -> {
+            // 只处理评价数量达到最小要求的教师
+            if (evaluations.size() >= minEvaluationCount) {
+                // 计算平均分
+                BigDecimal averageScore = evaluations.stream()
+                        .map(Evaluation::getScore)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add)
+                        .divide(BigDecimal.valueOf(evaluations.size()), 2, RoundingMode.HALF_UP);
+
+                // 如果平均分达到优秀标准
+                if (averageScore.compareTo(excellentThreshold) >= 0) {
+                    Teacher teacher = teacherMapper.selectById(teacherId);
+                    if (teacher != null) {
+                        Map<String, Object> teacherInfo = new HashMap<>();
+                        teacherInfo.put("teacherId", teacherId);
+                        teacherInfo.put("name", teacher.getName());
+                        teacherInfo.put("department", teacher.getDepartment());
+                        teacherInfo.put("averageScore", averageScore);
+                        teacherInfo.put("evaluationCount", evaluations.size());
+                        excellentTeachers.add(teacherInfo);
+                    }
+                }
+            }
+        });
+
+        // 按平均分降序排序
+        excellentTeachers.sort((a, b) -> {
+            BigDecimal scoreA = (BigDecimal) a.get("averageScore");
+            BigDecimal scoreB = (BigDecimal) b.get("averageScore");
+            return scoreB.compareTo(scoreA);
+        });
+
         return excellentTeachers;
     }
 
@@ -198,7 +251,43 @@ public class EvaluationServiceImpl extends ServiceImpl<EvaluationMapper, Evaluat
         }
 
         List<Map<String, Object>> departmentStats = new ArrayList<>();
-        // TODO: 实现获取部门教师评价统计的逻辑
+
+        // 获取部门所有教师
+        List<Teacher> teachers = teacherMapper.selectByDepartment(departmentId);
+
+        // 统计每个教师的评价情况
+        for (Teacher teacher : teachers) {
+            Map<String, Object> teacherStats = new HashMap<>();
+            teacherStats.put("teacherId", teacher.getTeacherId());
+            teacherStats.put("name", teacher.getName());
+
+            // 获取教师的所有监考安排
+            List<InvigilatorAssignment> assignments = assignmentService.getTeacherAssignments(teacher.getTeacherId());
+
+            // 获取所有评价
+            List<Evaluation> evaluations = assignments.stream()
+                    .flatMap(assignment -> getByAssignmentId(assignment.getAssignmentId()).stream())
+                    .collect(Collectors.toList());
+
+            // 计算统计数据
+            BigDecimal averageScore = evaluations.stream()
+                    .map(Evaluation::getScore)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(Math.max(1, evaluations.size())), 2, RoundingMode.HALF_UP);
+
+            teacherStats.put("evaluationCount", evaluations.size());
+            teacherStats.put("averageScore", averageScore);
+
+            // 计算优秀评价比例（90分以上）
+            long excellentCount = evaluations.stream()
+                    .filter(e -> e.getScore().compareTo(new BigDecimal("90")) >= 0)
+                    .count();
+            double excellentRate = evaluations.isEmpty() ? 0 : (double) excellentCount / evaluations.size();
+            teacherStats.put("excellentRate", excellentRate);
+
+            departmentStats.add(teacherStats);
+        }
+
         return departmentStats;
     }
 
@@ -206,25 +295,152 @@ public class EvaluationServiceImpl extends ServiceImpl<EvaluationMapper, Evaluat
     @Transactional
     @CacheEvict(value = "evaluationCache", allEntries = true)
     public boolean updateEvaluationCriteria(Map<String, Object> criteria) {
-        if (criteria == null || criteria.isEmpty()) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
+        log.info("开始更新评价标准");
+        try {
+            // 验证参数
+            if (criteria == null || criteria.isEmpty()) {
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "评价标准参数不能为空");
+            }
 
-        // TODO: 实现更新评价标准的逻辑
-        return true;
+            // 获取并验证各项标准
+            BigDecimal excellentThreshold = getBigDecimalFromMap(criteria, "excellentThreshold");
+            BigDecimal qualifiedThreshold = getBigDecimalFromMap(criteria, "qualifiedThreshold");
+            Integer minEvaluationCount = getIntegerFromMap(criteria, "minEvaluationCount");
+
+            // 验证阈值的合理性
+            validateThresholds(excellentThreshold, qualifiedThreshold, minEvaluationCount);
+
+            // 更新到数据库
+            Map<String, Object> params = new HashMap<>();
+            params.put("excellentThreshold", excellentThreshold);
+            params.put("qualifiedThreshold", qualifiedThreshold);
+            params.put("minEvaluationCount", minEvaluationCount);
+
+            int result = baseMapper.updateEvaluationCriteria(params);
+            boolean updated = result > 0;
+
+            if (updated) {
+                log.info("评价标准更新成功");
+            } else {
+                log.warn("评价标准更新失败");
+            }
+
+            return updated;
+        } catch (BusinessException e) {
+            log.error("更新评价标准时发生业务异常：{}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("更新评价标准时发生系统异常", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "更新评价标准失败");
+        }
     }
 
     @Override
     @Cacheable(value = "evaluationCache", key = "'ranking:' + #department + ':' + #startDate + ':' + #endDate")
     public List<Map<String, Object>> getTeacherScoreRanking(String department, LocalDateTime startDate,
             LocalDateTime endDate) {
-        if (startDate == null || endDate == null) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
+        log.info("开始获取教师评分排名，部门：{}，时间范围：{} - {}", department, startDate, endDate);
+        try {
+            // 获取部门内的所有教师
+            List<Teacher> teachers = teacherMapper.selectByDepartment(department);
+            if (teachers.isEmpty()) {
+                log.warn("未找到部门{}的教师", department);
+                return new ArrayList<>();
+            }
 
-        List<Map<String, Object>> rankings = new ArrayList<>();
-        // TODO: 实现获取教师评分排名的逻辑
-        return rankings;
+            // 获取每个教师的评分统计
+            List<Map<String, Object>> rankings = new ArrayList<>();
+            for (Teacher teacher : teachers) {
+                // 获取教师在指定时间范围内的评价统计
+                Map<String, Object> stats = getTeacherEvaluationStats(teacher.getTeacherId(), startDate, endDate);
+
+                Map<String, Object> rankInfo = new HashMap<>();
+                rankInfo.put("teacherId", teacher.getTeacherId());
+                rankInfo.put("teacherName", teacher.getName());
+                rankInfo.put("averageScore", stats.get("averageScore"));
+                rankInfo.put("evaluationCount", stats.get("totalEvaluations"));
+                rankInfo.put("excellentRate", stats.get("excellentRate"));
+
+                rankings.add(rankInfo);
+            }
+
+            // 按平均分降序排序
+            rankings.sort((a, b) -> {
+                BigDecimal scoreA = (BigDecimal) a.get("averageScore");
+                BigDecimal scoreB = (BigDecimal) b.get("averageScore");
+                return scoreB.compareTo(scoreA);
+            });
+
+            // 添加排名信息
+            for (int i = 0; i < rankings.size(); i++) {
+                rankings.get(i).put("rank", i + 1);
+            }
+
+            log.info("成功获取{}个教师的评分排名", rankings.size());
+            return rankings;
+        } catch (BusinessException e) {
+            log.error("获取教师评分排名时发生业务异常：{}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("获取教师评分排名时发生系统异常", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "获取教师评分排名失败");
+        }
+    }
+
+    private BigDecimal getBigDecimalFromMap(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, key + "不能为空");
+        }
+        try {
+            if (value instanceof BigDecimal) {
+                return (BigDecimal) value;
+            } else if (value instanceof String) {
+                return new BigDecimal((String) value);
+            } else if (value instanceof Number) {
+                return BigDecimal.valueOf(((Number) value).doubleValue());
+            }
+            throw new BusinessException(ErrorCode.PARAM_ERROR, key + "格式不正确");
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, key + "格式不正确");
+        }
+    }
+
+    private Integer getIntegerFromMap(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, key + "不能为空");
+        }
+        try {
+            if (value instanceof Integer) {
+                return (Integer) value;
+            } else if (value instanceof String) {
+                return Integer.parseInt((String) value);
+            } else if (value instanceof Number) {
+                return ((Number) value).intValue();
+            }
+            throw new BusinessException(ErrorCode.PARAM_ERROR, key + "格式不正确");
+        } catch (NumberFormatException e) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, key + "格式不正确");
+        }
+    }
+
+    private void validateThresholds(BigDecimal excellentThreshold, BigDecimal qualifiedThreshold,
+            Integer minEvaluationCount) {
+        if (excellentThreshold.compareTo(BigDecimal.ZERO) < 0
+                || excellentThreshold.compareTo(new BigDecimal("100")) > 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "优秀阈值必须在0-100之间");
+        }
+        if (qualifiedThreshold.compareTo(BigDecimal.ZERO) < 0
+                || qualifiedThreshold.compareTo(new BigDecimal("100")) > 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "合格阈值必须在0-100之间");
+        }
+        if (excellentThreshold.compareTo(qualifiedThreshold) <= 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "优秀阈值必须大于合格阈值");
+        }
+        if (minEvaluationCount < 1) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "最小评价数量必须大于0");
+        }
     }
 
     @Override
@@ -234,8 +450,40 @@ public class EvaluationServiceImpl extends ServiceImpl<EvaluationMapper, Evaluat
             throw new BusinessException(ErrorCode.PARAM_ERROR);
         }
 
-        // TODO: 实现计算教师综合评分的逻辑
-        return BigDecimal.ZERO;
+        // 获取时间范围内的监考安排
+        List<InvigilatorAssignment> assignments = assignmentService.getTeacherAssignmentsByTimeRange(
+                teacherId, startDate, endDate);
+
+        if (assignments.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        // 获取所有评价
+        List<Evaluation> evaluations = assignments.stream()
+                .flatMap(assignment -> getByAssignmentId(assignment.getAssignmentId()).stream())
+                .collect(Collectors.toList());
+
+        if (evaluations.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        // 计算评分占比（70%）
+        BigDecimal averageScore = evaluations.stream()
+                .map(Evaluation::getScore)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .divide(BigDecimal.valueOf(evaluations.size()), 2, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(0.7));
+
+        // 计算任务完成率占比（30%）
+        long completedCount = assignments.stream()
+                .filter(a -> a.getStatus() == InvigilatorAssignmentStatus.COMPLETED) // 已完成的监考
+                .count();
+        BigDecimal completionRate = BigDecimal.valueOf(completedCount)
+                .divide(BigDecimal.valueOf(assignments.size()), 2, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(30)); // 转换为百分制
+
+        // 返回综合评分
+        return averageScore.add(completionRate);
     }
 
     @Override
@@ -246,7 +494,54 @@ public class EvaluationServiceImpl extends ServiceImpl<EvaluationMapper, Evaluat
         }
 
         Map<String, Object> report = new HashMap<>();
-        // TODO: 实现生成教师考评报告的逻辑
+
+        // 获取教师基本信息
+        Teacher teacher = teacherMapper.selectById(teacherId);
+        report.put("teacherInfo", teacher);
+
+        // 获取时间范围内的监考安排
+        List<InvigilatorAssignment> assignments = assignmentService.getTeacherAssignmentsByTimeRange(
+                teacherId, startDate, endDate);
+
+        // 统计监考任务情况
+        Map<String, Object> assignmentStats = new HashMap<>();
+        assignmentStats.put("totalCount", assignments.size());
+        assignmentStats.put("completedCount",
+                assignments.stream().filter(a -> a.getStatus() == InvigilatorAssignmentStatus.COMPLETED).count());
+        assignmentStats.put("canceledCount",
+                assignments.stream().filter(a -> a.getStatus() == InvigilatorAssignmentStatus.CANCELLED).count());
+        report.put("assignmentStats", assignmentStats);
+
+        // 获取评价统计
+        List<Evaluation> evaluations = assignments.stream()
+                .flatMap(assignment -> getByAssignmentId(assignment.getAssignmentId()).stream())
+                .collect(Collectors.toList());
+
+        Map<String, Object> evaluationStats = new HashMap<>();
+        if (!evaluations.isEmpty()) {
+            // 计算平均分
+            BigDecimal averageScore = evaluations.stream()
+                    .map(Evaluation::getScore)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(evaluations.size()), 2, RoundingMode.HALF_UP);
+
+            // 计算优秀评价比例
+            long excellentCount = evaluations.stream()
+                    .filter(e -> e.getScore().compareTo(new BigDecimal("90")) >= 0)
+                    .count();
+            double excellentRate = (double) excellentCount / evaluations.size();
+
+            evaluationStats.put("evaluationCount", evaluations.size());
+            evaluationStats.put("averageScore", averageScore);
+            evaluationStats.put("excellentCount", excellentCount);
+            evaluationStats.put("excellentRate", excellentRate);
+        }
+        report.put("evaluationStats", evaluationStats);
+
+        // 计算综合评分
+        BigDecimal compositeScore = calculateTeacherCompositeScore(teacherId, startDate, endDate);
+        report.put("compositeScore", compositeScore);
+
         return report;
     }
 
@@ -258,7 +553,74 @@ public class EvaluationServiceImpl extends ServiceImpl<EvaluationMapper, Evaluat
         }
 
         Map<String, Object> statistics = new HashMap<>();
-        // TODO: 实现获取部门评分统计的逻辑
+
+        // 获取部门所有教师
+        List<Teacher> teachers = teacherMapper.selectByDepartment(department);
+
+        // 获取所有教师的评价数据
+        List<BigDecimal> allScores = new ArrayList<>();
+        Map<Integer, BigDecimal> teacherScores = new HashMap<>();
+
+        for (Teacher teacher : teachers) {
+            // 计算每个教师的综合评分
+            BigDecimal score = calculateTeacherCompositeScore(teacher.getTeacherId(), startDate, endDate);
+            if (score.compareTo(BigDecimal.ZERO) > 0) {
+                allScores.add(score);
+                teacherScores.put(teacher.getTeacherId(), score);
+            }
+        }
+
+        if (!allScores.isEmpty()) {
+            // 计算部门平均分
+            BigDecimal departmentAverage = allScores.stream()
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(allScores.size()), 2, RoundingMode.HALF_UP);
+
+            // 计算最高分和最低分
+            BigDecimal highestScore = allScores.stream()
+                    .max(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
+
+            BigDecimal lowestScore = allScores.stream()
+                    .min(BigDecimal::compareTo)
+                    .orElse(BigDecimal.ZERO);
+
+            // 计算优秀教师比例（90分以上）
+            long excellentCount = allScores.stream()
+                    .filter(score -> score.compareTo(new BigDecimal("90")) >= 0)
+                    .count();
+            double excellentRate = (double) excellentCount / allScores.size();
+
+            statistics.put("departmentAverage", departmentAverage);
+            statistics.put("highestScore", highestScore);
+            statistics.put("lowestScore", lowestScore);
+            statistics.put("totalTeachers", teachers.size());
+            statistics.put("evaluatedTeachers", allScores.size());
+            statistics.put("excellentCount", excellentCount);
+            statistics.put("excellentRate", excellentRate);
+
+            // 获取前三名教师
+            List<Map<String, Object>> topTeachers = teacherScores.entrySet().stream()
+                    .sorted((e1, e2) -> e2.getValue().compareTo(e1.getValue()))
+                    .limit(3)
+                    .map(entry -> {
+                        Map<String, Object> teacherInfo = new HashMap<>();
+                        Teacher teacher = teachers.stream()
+                                .filter(t -> t.getTeacherId().equals(entry.getKey()))
+                                .findFirst()
+                                .orElse(null);
+                        if (teacher != null) {
+                            teacherInfo.put("teacherId", teacher.getTeacherId());
+                            teacherInfo.put("name", teacher.getName());
+                            teacherInfo.put("score", entry.getValue());
+                        }
+                        return teacherInfo;
+                    })
+                    .collect(Collectors.toList());
+
+            statistics.put("topTeachers", topTeachers);
+        }
+
         return statistics;
     }
 

@@ -2,7 +2,10 @@ package com.shishaoqi.examManagementServer.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.shishaoqi.examManagementServer.entity.TrainingMaterial;
+import com.shishaoqi.examManagementServer.entity.training.TrainingMaterial;
+import com.shishaoqi.examManagementServer.entity.training.TrainingMaterialStatus;
+import com.shishaoqi.examManagementServer.entity.training.TrainingMaterialType;
+import com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus;
 import com.shishaoqi.examManagementServer.exception.BusinessException;
 import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.TrainingMaterialMapper;
@@ -18,7 +21,6 @@ import org.springframework.cache.annotation.CacheEvict;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.io.Serializable;
 import java.util.HashMap;
 
 @Service
@@ -36,7 +38,7 @@ public class TrainingMaterialServiceImpl extends ServiceImpl<TrainingMaterialMap
     @Override
     public List<TrainingMaterial> getPublishedMaterials() {
         LambdaQueryWrapper<TrainingMaterial> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(TrainingMaterial::getStatus, 1) // 已发布状态
+        wrapper.eq(TrainingMaterial::getStatus, TrainingMaterialStatus.PUBLISHED)
                 .orderByDesc(TrainingMaterial::getCreateTime);
         List<TrainingMaterial> materials = list(wrapper);
         log.info("获取已发布的培训材料列表，共{}条", materials.size());
@@ -44,15 +46,15 @@ public class TrainingMaterialServiceImpl extends ServiceImpl<TrainingMaterialMap
     }
 
     @Override
-    public List<TrainingMaterial> getMaterialsByType(Integer type) {
-        if (type == null || type < 1 || type > 3) {
-            log.error("获取培训材料失败：类型无效，type={}", type);
+    public List<TrainingMaterial> getMaterialsByType(TrainingMaterialType type) {
+        if (type == null) {
+            log.error("获取培训材料失败：类型为空");
             throw new BusinessException(ErrorCode.PARAM_ERROR);
         }
 
         LambdaQueryWrapper<TrainingMaterial> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(TrainingMaterial::getType, type)
-                .eq(TrainingMaterial::getStatus, 1) // 只查询已发布的
+                .eq(TrainingMaterial::getStatus, TrainingMaterialStatus.PUBLISHED)
                 .orderByDesc(TrainingMaterial::getCreateTime);
         List<TrainingMaterial> materials = list(wrapper);
         log.info("获取类型[{}]的培训材料列表，共{}条", type, materials.size());
@@ -67,7 +69,7 @@ public class TrainingMaterialServiceImpl extends ServiceImpl<TrainingMaterialMap
             throw new BusinessException("培训材料不能为空");
         }
         material.setCreateTime(LocalDateTime.now());
-        material.setStatus(1); // 1: 正常状态
+        material.setStatus(TrainingMaterialStatus.PUBLISHED);
         trainingMaterialMapper.insert(material);
     }
 
@@ -84,53 +86,47 @@ public class TrainingMaterialServiceImpl extends ServiceImpl<TrainingMaterialMap
     @Override
     @Cacheable(value = "materialCache", key = "'latest:' + #limit")
     public List<TrainingMaterial> getLatestMaterials(Integer limit) {
-        return trainingMaterialMapper.getLatestMaterials(limit);
+        if (limit == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        return trainingMaterialMapper.getLatestMaterials(TrainingMaterialStatus.PUBLISHED, limit);
     }
 
     @Override
     @Cacheable(value = "materialCache", key = "'uncompleted:' + #teacherId")
     public List<TrainingMaterial> getUncompletedMaterials(Integer teacherId) {
-        return trainingMaterialMapper.getUncompletedMaterials(teacherId);
+        if (teacherId == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        return trainingMaterialMapper.getUncompletedMaterials(teacherId, TrainingMaterialStatus.PUBLISHED);
     }
 
     @Override
     @Cacheable(value = "materialCache", key = "'stats:' + #startDate + ':' + #endDate")
     public List<Map<String, Object>> getMaterialStatistics(LocalDateTime startDate, LocalDateTime endDate) {
-        return trainingMaterialMapper.getMaterialStatistics(startDate, endDate);
-    }
-
-    @Override
-    @Cacheable(value = "materialCache", key = "'required'")
-    public List<TrainingMaterial> getRequiredMaterials() {
-        return trainingMaterialMapper.getRequiredMaterials();
+        return trainingMaterialMapper.getMaterialStatistics(startDate, endDate, TrainingRecordStatus.COMPLETED);
     }
 
     @Override
     @Cacheable(value = "materialCache", key = "'completion'")
     public List<Map<String, Object>> getMaterialCompletionRates() {
-        return trainingMaterialMapper.getMaterialCompletionRates();
-    }
-
-    @Override
-    @Transactional
-    @CacheEvict(value = "materialCache", allEntries = true)
-    public void batchUpdateStatus(List<TrainingMaterial> materials) {
-        if (materials == null || materials.isEmpty()) {
-            throw new BusinessException("培训材料列表不能为空");
-        }
-        trainingMaterialMapper.batchUpdateStatus(materials);
+        return trainingMaterialMapper.getMaterialCompletionRates(TrainingRecordStatus.COMPLETED,
+                TrainingMaterialStatus.PUBLISHED);
     }
 
     @Override
     @Cacheable(value = "materialCache", key = "'deptStats'")
     public List<Map<String, Object>> getDepartmentMaterialStats() {
-        return trainingMaterialMapper.getDepartmentMaterialStats();
+        return trainingMaterialMapper.getDepartmentMaterialStats(TrainingRecordStatus.COMPLETED);
     }
 
     @Override
     @Transactional
     @CacheEvict(value = "materialCache", key = "#materialId")
-    public boolean updateStatus(Long materialId, Integer status) {
+    public boolean updateStatus(Long materialId, TrainingMaterialStatus status) {
+        if (materialId == null || status == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
         return trainingMaterialMapper.updateStatus(materialId, status) > 0;
     }
 
@@ -138,6 +134,9 @@ public class TrainingMaterialServiceImpl extends ServiceImpl<TrainingMaterialMap
     @Transactional
     @CacheEvict(value = "materialCache", key = "#materialId")
     public boolean updatePassScore(Long materialId, Integer passScore) {
+        if (materialId == null || passScore == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
         return trainingMaterialMapper.updatePassScore(materialId, passScore) > 0;
     }
 
@@ -202,107 +201,41 @@ public class TrainingMaterialServiceImpl extends ServiceImpl<TrainingMaterialMap
     }
 
     @Override
-    @Cacheable(value = "materialCache", key = "'recommended:' + #teacherId")
+    @Transactional
+    @CacheEvict(value = "materialCache", allEntries = true)
+    public void batchUpdateStatus(List<TrainingMaterial> materials) {
+        if (materials == null || materials.isEmpty()) {
+            throw new BusinessException("培训材料列表不能为空");
+        }
+        trainingMaterialMapper.batchUpdateStatus(materials);
+    }
+
+    @Override
     public List<TrainingMaterial> getRecommendedMaterials(Integer teacherId) {
-        // 获取教师未完成的材料
-        List<TrainingMaterial> uncompletedRequired = trainingMaterialMapper.getUncompletedMaterials(teacherId).stream()
-                .filter(m -> m.getType() == 1) // 使用type字段代替isRequired
-                .collect(java.util.stream.Collectors.toList());
+        // 获取所有已发布的培训材料
+        LambdaQueryWrapper<TrainingMaterial> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(TrainingMaterial::getStatus, TrainingMaterialStatus.PUBLISHED)
+                .orderByDesc(TrainingMaterial::getCreateTime);
+
+        // 获取教师未完成的必修材料
+        List<TrainingMaterial> uncompletedRequired = list(wrapper.clone()
+                .eq(TrainingMaterial::getIsRequired, true)
+                .notExists("SELECT 1 FROM training_record tr WHERE tr.material_id = training_material.material_id " +
+                        "AND tr.teacher_id = {0} AND tr.status = {1}", teacherId, TrainingRecordStatus.COMPLETED));
 
         if (!uncompletedRequired.isEmpty()) {
             return uncompletedRequired;
         }
 
         // 如果必修材料都已完成，获取最新的选修材料
-        return trainingMaterialMapper.getLatestMaterials(5).stream()
-                .filter(m -> m.getType() != 1) // 使用type字段代替isRequired
-                .collect(java.util.stream.Collectors.toList());
+        return list(wrapper.clone()
+                .eq(TrainingMaterial::getIsRequired, false)
+                .last("LIMIT 5"));
     }
 
     @Override
-    public boolean save(TrainingMaterial material) {
-        if (material == null) {
-            log.error("保存培训材料失败：材料对象为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (material.getTitle() == null || material.getTitle().trim().isEmpty()) {
-            log.error("保存培训材料失败：标题为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (material.getType() == null || material.getType() < 1 || material.getType() > 3) {
-            log.error("保存培训材料失败：类型无效");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (material.getRequiredMinutes() != null && material.getRequiredMinutes() < 0) {
-            log.error("保存培训材料失败：要求学习时长无效");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        // 设置初始状态为草稿
-        material.setStatus(0);
-        material.setCreateTime(LocalDateTime.now());
-
-        boolean success = super.save(material);
-        if (success) {
-            log.info("成功保存培训材料，ID：{}，标题：{}", material.getMaterialId(), material.getTitle());
-        } else {
-            log.error("保存培训材料失败");
-        }
-        return success;
-    }
-
-    @Override
-    public boolean updateById(TrainingMaterial material) {
-        if (material == null || material.getMaterialId() == null) {
-            log.error("更新培训材料失败：材料ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        // 检查材料是否存在
-        TrainingMaterial existingMaterial = getById(material.getMaterialId());
-        if (existingMaterial == null) {
-            log.error("更新培训材料失败：材料不存在，ID={}", material.getMaterialId());
-            throw new BusinessException(ErrorCode.NOT_FOUND);
-        }
-
-        if (material.getType() != null && (material.getType() < 1 || material.getType() > 3)) {
-            log.error("更新培训材料失败：类型无效");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        if (material.getRequiredMinutes() != null && material.getRequiredMinutes() < 0) {
-            log.error("更新培训材料失败：要求学习时长无效");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        boolean success = super.updateById(material);
-        if (success) {
-            log.info("成功更新培训材料，ID：{}", material.getMaterialId());
-        } else {
-            log.error("更新培训材料失败，ID：{}", material.getMaterialId());
-        }
-        return success;
-    }
-
-    @Override
-    public boolean removeById(Serializable id) {
-        if (id == null) {
-            log.error("删除培训材料失败：材料ID为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        // 检查材料是否存在
-        TrainingMaterial existingMaterial = getById(id);
-        if (existingMaterial == null) {
-            log.error("删除培训材料失败：材料不存在，ID={}", id);
-            throw new BusinessException(ErrorCode.NOT_FOUND);
-        }
-
-        boolean success = super.removeById(id);
-        if (success) {
-            log.info("成功删除培训材料，ID：{}", id);
-        } else {
-            log.error("删除培训材料失败，ID：{}", id);
-        }
-        return success;
+    @Cacheable(value = "materialCache", key = "'required'")
+    public List<TrainingMaterial> getRequiredMaterials() {
+        return trainingMaterialMapper.getRequiredMaterials(TrainingMaterialStatus.PUBLISHED);
     }
 }

@@ -13,14 +13,15 @@ USE exam_management;
 -- 教师表
 -- ----------------------------
 CREATE TABLE teacher (
-    teacher_id INT PRIMARY KEY AUTO_INCREMENT,  -- 改为自增整数类型
+    teacher_id INT PRIMARY KEY AUTO_INCREMENT,
     name VARCHAR(50) NOT NULL,
     password VARCHAR(100) NOT NULL,
     phone VARCHAR(20),
-    email VARCHAR(100) UNIQUE,  -- 添加唯一约束
+    email VARCHAR(100) UNIQUE,
     department VARCHAR(50),
     title VARCHAR(50),
-    status TINYINT DEFAULT 0 COMMENT '0=未激活, 1=已激活, 2=已停用',
+    role VARCHAR(20) NOT NULL DEFAULT 'TEACHER' COMMENT 'ADMIN=系统管理员, EXAM_ADMIN=考务管理员, TEACHER=普通教师',
+    status VARCHAR(20) NOT NULL DEFAULT 'INACTIVE' COMMENT 'INACTIVE=未激活, ACTIVE=已激活, DISABLED=已停用',
     last_login DATETIME DEFAULT NULL,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -30,17 +31,16 @@ CREATE TABLE teacher (
 -- ----------------------------
 CREATE TABLE invigilator_assignment (
     assignment_id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    teacher_id INT NOT NULL,  -- 同步为INT类型
+    teacher_id INT NOT NULL,
     course_name VARCHAR(100) NOT NULL,
-    exam_start DATETIME NOT NULL COMMENT '考试开始时间（包含日期和时间）',  -- 合并日期和时间
+    exam_start DATETIME NOT NULL COMMENT '考试开始时间',
     exam_end DATETIME NOT NULL COMMENT '考试结束时间',
     location VARCHAR(100) NOT NULL,
-    role INT NOT NULL COMMENT '0=主监考, 1=副监考',
-    status TINYINT NOT NULL DEFAULT 0 COMMENT '0=未确认, 1=已确认, 2=已取消',
+    role VARCHAR(20) NOT NULL COMMENT 'CHIEF=主监考, ASSISTANT=副监考',
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING=待确认, CONFIRMED=已确认, COMPLETED=已完成, CANCELLED=已取消',
     assign_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     confirm_time DATETIME,
     FOREIGN KEY (teacher_id) REFERENCES teacher(teacher_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    -- 避免同一教师在相同时间段重复分配
     UNIQUE INDEX idx_teacher_time (teacher_id, exam_start)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -52,12 +52,14 @@ CREATE TABLE training_material (
     title VARCHAR(100) NOT NULL,
     description TEXT,
     content TEXT NOT NULL,
-    type INT NOT NULL COMMENT '1=文档, 2=视频, 3=测试',
-    required_minutes INT NOT NULL COMMENT '预计学习时长（分钟）',  -- 重命名并添加注释
-    exam_questions TEXT,
-    pass_score INT NOT NULL CHECK (pass_score BETWEEN 0 AND 100),  -- 添加约束
-    status TINYINT NOT NULL DEFAULT 0 COMMENT '0=草稿, 1=发布, 2=下架',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP
+    type VARCHAR(20) NOT NULL COMMENT 'DOCUMENT=文档, VIDEO=视频, QUIZ=测试',
+    status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT=草稿, PUBLISHED=已发布, ARCHIVED=已归档',
+    creator_id INT NOT NULL,
+    duration INT NOT NULL COMMENT '预计学习时长（分钟）',
+    is_required BOOLEAN NOT NULL DEFAULT FALSE,
+    tags JSON,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (creator_id) REFERENCES teacher(teacher_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ----------------------------
@@ -66,15 +68,16 @@ CREATE TABLE training_material (
 CREATE TABLE training_record (
     record_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     material_id BIGINT NOT NULL,
-    teacher_id INT NOT NULL,  -- 同步为INT类型
-    study_time INT NOT NULL DEFAULT 0 COMMENT '实际学习时长（分钟）',
-    exam_score INT DEFAULT NULL COMMENT '未考试时为NULL',  -- 允许NULL
-    status TINYINT NOT NULL DEFAULT 0 COMMENT '0=未开始, 1=进行中, 2=已完成',
+    teacher_id INT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'NOT_STARTED' COMMENT 'NOT_STARTED=未开始, IN_PROGRESS=进行中, COMPLETED=已完成, EXPIRED=已过期',
+    progress INT NOT NULL DEFAULT 0 COMMENT '学习进度（百分比）',
     start_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     complete_time DATETIME,
+    last_access DATETIME,
+    remarks TEXT,
     FOREIGN KEY (material_id) REFERENCES training_material(material_id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (teacher_id) REFERENCES teacher(teacher_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    INDEX idx_material_teacher (material_id, teacher_id)  -- 联合索引
+    INDEX idx_material_teacher (material_id, teacher_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ----------------------------
@@ -82,15 +85,18 @@ CREATE TABLE training_record (
 -- ----------------------------
 CREATE TABLE message (
     message_id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    teacher_id INT NOT NULL,  -- 同步为INT类型
     title VARCHAR(100) NOT NULL,
     content TEXT NOT NULL,
-    type INT NOT NULL COMMENT '1=系统通知, 2=监考提醒, 3=培训通知',
-    status TINYINT NOT NULL DEFAULT 0 COMMENT '0=未读, 1=已读',
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    type VARCHAR(20) NOT NULL COMMENT 'SYSTEM=系统通知, ASSIGNMENT=监考提醒, TRAINING=培训通知, NOTIFICATION=一般通知',
+    status VARCHAR(20) NOT NULL DEFAULT 'UNREAD' COMMENT 'UNREAD=未读, READ=已读',
+    receiver_id INT NOT NULL,
+    sender_id INT NOT NULL DEFAULT 0,
+    send_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     read_time DATETIME,
-    FOREIGN KEY (teacher_id) REFERENCES teacher(teacher_id) ON DELETE CASCADE ON UPDATE CASCADE,
-    INDEX idx_message_type_status (type, status)  -- 联合索引
+    reference_id BIGINT,
+    require_confirm BOOLEAN NOT NULL DEFAULT FALSE,
+    FOREIGN KEY (receiver_id) REFERENCES teacher(teacher_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    INDEX idx_message_type_status (type, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ----------------------------
@@ -99,10 +105,19 @@ CREATE TABLE message (
 CREATE TABLE invigilation_record (
     record_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     assignment_id BIGINT NOT NULL,
-    type INT NOT NULL COMMENT '1=签到, 2=异常事件, 3=备注',
-    description TEXT NOT NULL,
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,  -- 添加默认时间
-    FOREIGN KEY (assignment_id) REFERENCES invigilator_assignment(assignment_id) ON DELETE CASCADE ON UPDATE CASCADE
+    type VARCHAR(20) NOT NULL COMMENT 'SIGN_IN=签到, INCIDENT=异常事件, VIOLATION=违规记录, NOTE=备注',
+    status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT=草稿, SUBMITTED=已提交, APPROVED=已审核, REJECTED=已驳回',
+    content TEXT NOT NULL,
+    creator_id INT NOT NULL,
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    submit_time DATETIME,
+    reviewer_id INT,
+    review_time DATETIME,
+    review_comment TEXT,
+    attachments JSON,
+    FOREIGN KEY (assignment_id) REFERENCES invigilator_assignment(assignment_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (creator_id) REFERENCES teacher(teacher_id),
+    FOREIGN KEY (reviewer_id) REFERENCES teacher(teacher_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ----------------------------
@@ -111,9 +126,9 @@ CREATE TABLE invigilation_record (
 CREATE TABLE evaluation (
     evaluation_id BIGINT PRIMARY KEY AUTO_INCREMENT,
     assignment_id BIGINT NOT NULL,
-    evaluator_id INT NOT NULL,  -- 同步为INT类型
-    score DECIMAL(5,2) NOT NULL COMMENT '支持小数点评分（如90.5）',  -- 改用DECIMAL
-    comment TEXT DEFAULT NULL,  -- 允许NULL
+    evaluator_id INT NOT NULL,
+    score DECIMAL(5,2) NOT NULL COMMENT '评分（0-100）',
+    comment TEXT,
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (assignment_id) REFERENCES invigilator_assignment(assignment_id) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (evaluator_id) REFERENCES teacher(teacher_id) ON DELETE CASCADE ON UPDATE CASCADE
@@ -122,9 +137,6 @@ CREATE TABLE evaluation (
 -- ----------------------------
 -- 其他索引优化
 -- ----------------------------
--- 教师表按部门和状态查询
 CREATE INDEX idx_teacher_department ON teacher(department);
 CREATE INDEX idx_teacher_status ON teacher(status);
-
--- 监考安排表按日期范围查询
 CREATE INDEX idx_assignment_date_range ON invigilator_assignment(exam_start, exam_end);

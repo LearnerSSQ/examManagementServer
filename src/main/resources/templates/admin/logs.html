@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <title>系统日志</title>
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <link rel="stylesheet" th:href="@{/css/nav.css}">
+</head>
+
+<body>
+    <div th:replace="~{fragments/nav :: nav}"></div>
+
+    <div class="container">
+        <h1>系统日志</h1>
+        <div class="logs-panel">
+            <div class="filter-section">
+                <select id="logLevel" class="form-control">
+                    <option value="ALL">所有级别</option>
+                    <option value="ERROR">错误</option>
+                    <option value="WARN">警告</option>
+                    <option value="INFO">信息</option>
+                    <option value="DEBUG">调试</option>
+                </select>
+
+                <input type="date" id="startDate" class="form-control">
+                <input type="date" id="endDate" class="form-control">
+
+                <button id="refreshBtn" class="btn btn-primary">刷新</button>
+            </div>
+
+            <div class="logs-content">
+                <pre id="logContent">正在加载日志...</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function refreshLogs() {
+            fetch('/api/admin/logs/content')
+                .then(response => response.text())
+                .then(content => {
+                    document.getElementById('logContent').textContent = content;
+                })
+                .catch(error => {
+                    console.error('刷新日志失败：', error);
+                    alert('刷新日志失败');
+                });
+        }
+
+        document.getElementById('refreshBtn').addEventListener('click', refreshLogs);
+    </script>
+</body>
+
+</html>

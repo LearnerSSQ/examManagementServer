@@ -24,7 +24,6 @@ public class GlobalExceptionHandler {
     public Result<?> handleSQLIntegrityConstraintViolationException(SQLIntegrityConstraintViolationException e) {
         log.error("数据库约束异常：{}", e.getMessage());
         if (e.getMessage().contains("foreign key constraint")) {
-            // 处理外键约束异常
             if (e.getMessage().contains("teacher_id")) {
                 return Result.error(ErrorCode.INVALID_TEACHER_ID);
             }

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <title>系统设置</title>
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <link rel="stylesheet" th:href="@{/css/nav.css}">
+</head>
+
+<body>
+    <div th:replace="~{fragments/nav :: nav}"></div>
+
+    <div class="container">
+        <h1>系统设置</h1>
+        <div class="settings-panel">
+            <form id="settingsForm">
+                <div class="form-group">
+                    <label for="siteName">网站名称</label>
+                    <input type="text" id="siteName" name="siteName" class="form-control">
+                </div>
+
+                <div class="form-group">
+                    <label for="adminEmail">管理员邮箱</label>
+                    <input type="email" id="adminEmail" name="adminEmail" class="form-control">
+                </div>
+
+                <div class="form-group">
+                    <label for="maxUploadSize">最大上传文件大小(MB)</label>
+                    <input type="number" id="maxUploadSize" name="maxUploadSize" class="form-control">
+                </div>
+
+                <button type="submit" class="btn btn-primary">保存设置</button>
+            </form>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head>
+    <meta charset="UTF-8">
+</head>
+
+<body>
+    <!-- 导航栏片段 -->
+    <nav th:fragment="nav" class="navbar">
+        <div class="nav-brand gradient-text">
+            考试管理系统
+        </div>
+
+        <div class="nav-menu">
+            <!-- 所有用户可见 -->
+            <div class="nav-group">
+                <a th:href="@{/api/profile}" class="nav-item">
+                    <i class="fas fa-user"></i>
+                    <span>个人信息</span>
+                </a>
+            </div>
+
+            <!-- 系统管理员和考务管理员都可见 -->
+            <div class="nav-group" sec:authorize="hasAnyRole('ADMIN', 'EXAM_ADMIN')">
+                <div class="nav-group-title">系统管理</div>
+                <a th:href="@{/system/settings}" class="nav-item" sec:authorize="hasRole('ADMIN')">
+                    <i class="fas fa-cog"></i>
+                    <span>系统设置</span>
+                </a>
+                <a th:href="@{/system/logs}" class="nav-item" sec:authorize="hasRole('ADMIN')">
+                    <i class="fas fa-clipboard-list"></i>
+                    <span>系统日志</span>
+                </a>
+                <a th:href="@{/api/teachers/manage}" class="nav-item" sec:authorize="hasAnyRole('ADMIN', 'EXAM_ADMIN')">
+                    <i class="fas fa-users"></i>
+                    <span>教师管理</span>
+                </a>
+            </div>
+
+            <!-- 考务管理员专属 -->
+            <div class="nav-group" sec:authorize="hasRole('EXAM_ADMIN')">
+                <div class="nav-group-title">考务管理</div>
+                <a th:href="@{/api/assignments/manage}" class="nav-item">
+                    <i class="fas fa-tasks"></i>
+                    <span>监考安排</span>
+                </a>
+                <a th:href="@{/api/training/manage}" class="nav-item">
+                    <i class="fas fa-graduation-cap"></i>
+                    <span>培训管理</span>
+                </a>
+                <a th:href="@{/api/teachers}" class="nav-item">
+                    <i class="fas fa-user-graduate"></i>
+                    <span>教师列表</span>
+                </a>
+            </div>
+
+            <!-- 普通教师可见 -->
+            <div class="nav-group" sec:authorize="hasRole('TEACHER')">
+                <a th:href="@{/api/assignments/my}" class="nav-item">
+                    <i class="fas fa-clipboard-list"></i>
+                    <span>我的监考</span>
+                </a>
+                <a th:href="@{/api/training/my}" class="nav-item">
+                    <i class="fas fa-graduation-cap"></i>
+                    <span>我的培训</span>
+                </a>
+            </div>
+
+            <!-- 用户信息和退出 -->
+            <div class="nav-group nav-bottom">
+                <div class="user-info">
+                    <div class="user-details">
+                        <div class="user-name" th:text="${#authentication?.principal?.teacher?.name}">用户名</div>
+                        <div class="user-role" th:text="${#authentication?.principal?.teacher?.role}">角色</div>
+                    </div>
+                </div>
+                <a th:href="@{/logout}" class="nav-item nav-logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>退出</span>
+                </a>
+            </div>
+        </div>
+    </nav>
+</body>
+
+</html>

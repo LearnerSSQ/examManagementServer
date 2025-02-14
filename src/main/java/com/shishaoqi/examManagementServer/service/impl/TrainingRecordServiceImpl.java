@@ -2,8 +2,9 @@ package com.shishaoqi.examManagementServer.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.shishaoqi.examManagementServer.entity.TrainingRecord;
-import com.shishaoqi.examManagementServer.entity.TrainingMaterial;
+import com.shishaoqi.examManagementServer.entity.training.TrainingMaterial;
+import com.shishaoqi.examManagementServer.entity.training.TrainingRecord;
+import com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus;
 import com.shishaoqi.examManagementServer.exception.BusinessException;
 import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.TrainingRecordMapper;
@@ -14,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -35,8 +37,8 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         TrainingRecord record = new TrainingRecord();
         record.setTeacherId(teacherId);
         record.setMaterialId(materialId);
-        record.setStudyTime(0);
-        record.setStatus(0); // 未开始
+        record.setProgress(0);
+        record.setStatus(TrainingRecordStatus.NOT_STARTED);
         record.setStartTime(LocalDateTime.now());
         save(record);
         return record;
@@ -66,18 +68,18 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
 
     @Override
     public boolean hasCompletedTraining(Integer teacherId, Long materialId) {
-        if (teacherId == null || materialId == null) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-        LambdaQueryWrapper<TrainingRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(TrainingRecord::getTeacherId, teacherId)
+        TrainingRecord record = getOne(new LambdaQueryWrapper<TrainingRecord>()
+                .eq(TrainingRecord::getTeacherId, teacherId)
                 .eq(TrainingRecord::getMaterialId, materialId)
-                .eq(TrainingRecord::getStatus, 2); // 2 表示已通过
-        return count(wrapper) > 0;
+                .eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED)
+                .orderByDesc(TrainingRecord::getCompleteTime)
+                .last("LIMIT 1"));
+
+        return record != null && record.getCompleteTime() != null;
     }
 
     @Override
-    public boolean updateScore(Long recordId, Integer score, Integer status) {
+    public boolean updateScore(Long recordId, Integer score, TrainingRecordStatus status) {
         log.info("开始更新培训成绩，记录ID：{}，分数：{}，状态：{}", recordId, score, status);
 
         if (recordId == null || score == null || status == null) {
@@ -92,7 +94,7 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         }
 
         // 验证状态转换的合法性
-        if (record.getStatus() == 2) {
+        if (record.getStatus() == TrainingRecordStatus.COMPLETED) {
             log.warn("培训已完成，不能修改成绩，记录ID：{}", recordId);
             throw new BusinessException(ErrorCode.OPERATION_NOT_ALLOWED);
         }
@@ -102,14 +104,9 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
             throw new BusinessException(ErrorCode.INVALID_SCORE);
         }
 
-        if (status != 1 && status != 2) {
-            log.warn("无效的状态值：{}", status);
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
-        }
-
-        record.setExamScore(score);
+        record.setProgress(score);
         record.setStatus(status);
-        if (status == 2) { // 如果状态为完成，更新完成时间
+        if (status == TrainingRecordStatus.COMPLETED) {
             record.setCompleteTime(LocalDateTime.now());
         }
 
@@ -123,22 +120,36 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
     }
 
     @Override
-    public boolean updateStudyProgress(Long recordId, Integer studyTime) {
-        log.info("开始更新学习进度，记录ID：{}，学习时长：{}", recordId, studyTime);
+    public boolean updateProgress(Long recordId, Integer teacherId, Integer progress) {
+        log.info("开始更新学习进度，记录ID：{}，教师ID：{}，进度：{}", recordId, teacherId, progress);
+
         TrainingRecord record = getById(recordId);
         if (record == null) {
             log.warn("培训记录不存在，记录ID：{}", recordId);
             throw new BusinessException(ErrorCode.TRAINING_NOT_FOUND);
         }
-        if (studyTime < 0) {
-            log.warn("无效的学习时长：{}", studyTime);
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
+
+        if (!record.getTeacherId().equals(teacherId)) {
+            log.warn("无权更新此培训记录，记录ID：{}，教师ID：{}", recordId, teacherId);
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
-        record.setStudyTime(studyTime);
-        record.setCompleteTime(LocalDateTime.now());
-        if (record.getStatus() == 0) {
-            record.setStatus(1); // 更新为进行中
+
+        if (progress < 0 || progress > 100) {
+            log.warn("无效的进度值：{}", progress);
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "进度值必须在0-100之间");
         }
+
+        record.setProgress(progress);
+        record.setLastAccess(LocalDateTime.now());
+
+        // 更新状态
+        if (record.getStatus() == TrainingRecordStatus.NOT_STARTED && progress > 0) {
+            record.setStatus(TrainingRecordStatus.IN_PROGRESS);
+        } else if (progress == 100) {
+            record.setStatus(TrainingRecordStatus.COMPLETED);
+            record.setCompleteTime(LocalDateTime.now());
+        }
+
         boolean success = updateById(record);
         log.info("更新学习进度结果：{}，记录ID：{}", success ? "成功" : "失败", recordId);
         return success;
@@ -159,9 +170,9 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
 
-        boolean isValid = record.getStudyTime() >= material.getRequiredMinutes();
-        log.info("验证学习时长结果：{}，记录ID：{}，实际学习时长：{}，要求时长：{}",
-                isValid ? "通过" : "不通过", recordId, record.getStudyTime(), material.getRequiredMinutes());
+        boolean isValid = record.getProgress() >= material.getDuration();
+        log.info("验证学习时长结果：{}，记录ID：{}，实际学习进度：{}，要求时长：{}",
+                isValid ? "通过" : "不通过", recordId, record.getProgress(), material.getDuration());
 
         if (!isValid) {
             throw new BusinessException(ErrorCode.INSUFFICIENT_STUDY_TIME);
@@ -176,21 +187,18 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         // 获取完成率
         statistics.put("completionRate", getCompletionRate(teacherId));
 
-        // 获取平均分
-        statistics.put("averageScore", getAverageScore(teacherId));
-
         // 获取总培训时长
         LambdaQueryWrapper<TrainingRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(TrainingRecord::getTeacherId, teacherId);
         List<TrainingRecord> records = list(wrapper);
-        int totalStudyTime = records.stream()
-                .mapToInt(TrainingRecord::getStudyTime)
+        int totalProgress = records.stream()
+                .mapToInt(TrainingRecord::getProgress)
                 .sum();
-        statistics.put("totalStudyTime", totalStudyTime);
+        statistics.put("totalProgress", totalProgress);
 
         // 获取已完成培训数量
         long completedCount = records.stream()
-                .filter(r -> r.getStatus() == 2)
+                .filter(r -> r.getStatus() == TrainingRecordStatus.COMPLETED)
                 .count();
         statistics.put("completedCount", completedCount);
 
@@ -201,7 +209,7 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
     public List<TrainingRecord> getUnfinishedTrainings(Integer teacherId) {
         LambdaQueryWrapper<TrainingRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(TrainingRecord::getTeacherId, teacherId)
-                .ne(TrainingRecord::getStatus, 2) // 未完成的培训
+                .ne(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED)
                 .orderByDesc(TrainingRecord::getStartTime);
         return list(wrapper);
     }
@@ -221,7 +229,7 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         TrainingRecord record = getOne(new LambdaQueryWrapper<TrainingRecord>()
                 .eq(TrainingRecord::getTeacherId, teacherId)
                 .eq(TrainingRecord::getMaterialId, materialId)
-                .eq(TrainingRecord::getStatus, 2)
+                .eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED)
                 .orderByDesc(TrainingRecord::getCompleteTime)
                 .last("LIMIT 1"));
 
@@ -243,7 +251,7 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
             return 0.0;
         }
 
-        wrapper.eq(TrainingRecord::getStatus, 2); // 已完成
+        wrapper.eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED);
         long completed = count(wrapper);
 
         return (completed * 100.0) / total;
@@ -253,8 +261,8 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
     public double getAverageScore(Integer teacherId) {
         LambdaQueryWrapper<TrainingRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(TrainingRecord::getTeacherId, teacherId)
-                .eq(TrainingRecord::getStatus, 2) // 只计算已完成的
-                .isNotNull(TrainingRecord::getExamScore);
+                .eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED)
+                .isNotNull(TrainingRecord::getProgress);
 
         List<TrainingRecord> records = list(wrapper);
         if (records.isEmpty()) {
@@ -262,7 +270,7 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         }
 
         return records.stream()
-                .mapToInt(TrainingRecord::getExamScore)
+                .mapToInt(TrainingRecord::getProgress)
                 .average()
                 .orElse(0.0);
     }
@@ -279,7 +287,7 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         LambdaQueryWrapper<TrainingRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(TrainingRecord::getMaterialId, materialId)
                 .in(TrainingRecord::getTeacherId, teacherIds)
-                .eq(TrainingRecord::getStatus, 2) // 只查询已完成的记录
+                .eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED)
                 .orderByDesc(TrainingRecord::getCompleteTime);
 
         List<TrainingRecord> records = list(wrapper);
@@ -316,24 +324,45 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         // 获取所有必修培训材料
         List<TrainingMaterial> requiredMaterials = trainingMaterialService
                 .list(new LambdaQueryWrapper<TrainingMaterial>()
-                        .eq(TrainingMaterial::getType, 1)); // 假设type=1为必修培训
+                        .eq(TrainingMaterial::getIsRequired, true)
+                        .eq(TrainingMaterial::getStatus, "PUBLISHED"));
 
         // 检查每个必修培训的完成情况
         List<Map<String, Object>> details = new ArrayList<>();
+        int completedCount = 0;
+
         for (TrainingMaterial material : requiredMaterials) {
             Map<String, Object> detail = new HashMap<>();
             detail.put("materialId", material.getMaterialId());
             detail.put("title", material.getTitle());
-            detail.put("completed", hasCompletedTraining(teacherId, material.getMaterialId()));
-            detail.put("expired", isTrainingExpired(teacherId, material.getMaterialId()));
+
+            // 获取最新的培训记录
+            TrainingRecord record = getOne(new LambdaQueryWrapper<TrainingRecord>()
+                    .eq(TrainingRecord::getTeacherId, teacherId)
+                    .eq(TrainingRecord::getMaterialId, material.getMaterialId())
+                    .orderByDesc(TrainingRecord::getCompleteTime)
+                    .last("LIMIT 1"));
+
+            boolean completed = record != null &&
+                    record.getStatus() == TrainingRecordStatus.COMPLETED &&
+                    !isTrainingExpired(teacherId, material.getMaterialId());
+
+            detail.put("completed", completed);
+            detail.put("expired", record != null && isTrainingExpired(teacherId, material.getMaterialId()));
             details.add(detail);
+
+            if (completed) {
+                completedCount++;
+            }
         }
 
+        int totalRequired = requiredMaterials.size();
+        double completionRate = totalRequired > 0 ? (double) completedCount / totalRequired : 0.0;
+
         status.put("details", details);
-        status.put("totalRequired", requiredMaterials.size());
-        status.put("completedCount", details.stream()
-                .filter(d -> (boolean) d.get("completed") && !(boolean) d.get("expired"))
-                .count());
+        status.put("totalRequired", totalRequired);
+        status.put("completedCount", completedCount);
+        status.put("completionRate", completionRate);
 
         return status;
     }
@@ -346,7 +375,7 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         TrainingRecord record = getOne(new LambdaQueryWrapper<TrainingRecord>()
                 .eq(TrainingRecord::getTeacherId, teacherId)
                 .eq(TrainingRecord::getMaterialId, materialId)
-                .eq(TrainingRecord::getStatus, 2)
+                .eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED)
                 .orderByDesc(TrainingRecord::getCompleteTime)
                 .last("LIMIT 1"));
 
@@ -363,7 +392,7 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         certificate.put("teacherId", teacherId);
         certificate.put("materialTitle", material.getTitle());
         certificate.put("completionDate", record.getCompleteTime());
-        certificate.put("score", record.getExamScore());
+        certificate.put("score", record.getProgress());
         certificate.put("expiryDate", record.getCompleteTime().plusMonths(6));
 
         return certificate;
@@ -386,7 +415,7 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
                 boolean hasUnfinished = count(new LambdaQueryWrapper<TrainingRecord>()
                         .eq(TrainingRecord::getTeacherId, teacherId)
                         .eq(TrainingRecord::getMaterialId, materialId)
-                        .ne(TrainingRecord::getStatus, 2)) > 0;
+                        .ne(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED)) > 0;
 
                 if (!hasUnfinished) {
                     createRecord(teacherId, materialId);
@@ -406,7 +435,7 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         // 获取所有已完成的培训记录
         List<TrainingRecord> completedRecords = list(new LambdaQueryWrapper<TrainingRecord>()
                 .eq(TrainingRecord::getTeacherId, teacherId)
-                .eq(TrainingRecord::getStatus, 2));
+                .eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED));
 
         // 筛选即将过期的记录
         return completedRecords.stream()
@@ -425,13 +454,12 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
             throw new BusinessException(ErrorCode.TRAINING_NOT_FOUND);
         }
 
-        if (record.getStatus() == 2) {
+        if (record.getStatus() == TrainingRecordStatus.COMPLETED) {
             throw new BusinessException(ErrorCode.TRAINING_ALREADY_COMPLETED);
         }
 
-        record.setStudyTime(0);
-        record.setStatus(0);
-        record.setExamScore(null);
+        record.setProgress(0);
+        record.setStatus(TrainingRecordStatus.NOT_STARTED);
         record.setStartTime(LocalDateTime.now());
         record.setCompleteTime(null);
 
@@ -482,7 +510,7 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         long completedTrainings = lambdaQuery()
                 .ge(TrainingRecord::getStartTime, startTime)
                 .le(TrainingRecord::getStartTime, endTime)
-                .eq(TrainingRecord::getStatus, 2) // 假设2表示已完成
+                .eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED)
                 .count();
 
         // 获取参与培训的教师数量
@@ -500,5 +528,133 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         statistics.put("endTime", endTime);
 
         return statistics;
+    }
+
+    @Override
+    public List<TrainingRecord> getTeacherTrainings(Integer teacherId, TrainingRecordStatus status) {
+        log.info("获取教师{}的培训记录，状态：{}", teacherId, status);
+
+        LambdaQueryWrapper<TrainingRecord> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(TrainingRecord::getTeacherId, teacherId);
+        if (status != null) {
+            wrapper.eq(TrainingRecord::getStatus, status);
+        }
+
+        // 获取培训记录列表
+        List<TrainingRecord> records = baseMapper.selectList(wrapper);
+
+        // 使用关联查询获取培训材料信息
+        for (TrainingRecord record : records) {
+            TrainingMaterial material = trainingMaterialService.getById(record.getMaterialId());
+            if (material == null) {
+                log.warn("培训材料不存在，材料ID：{}", record.getMaterialId());
+            }
+        }
+
+        return records;
+    }
+
+    @Override
+    @Transactional
+    public void startTraining(Long recordId, Integer teacherId) {
+        log.info("开始培训，记录ID：{}，教师ID：{}", recordId, teacherId);
+
+        TrainingRecord record = getById(recordId);
+        if (record == null) {
+            log.warn("培训记录不存在，记录ID：{}", recordId);
+            throw new BusinessException(ErrorCode.TRAINING_NOT_FOUND);
+        }
+
+        if (!record.getTeacherId().equals(teacherId)) {
+            log.warn("无权开始此培训，记录ID：{}，教师ID：{}", recordId, teacherId);
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        if (record.getStatus() != TrainingRecordStatus.NOT_STARTED) {
+            log.warn("培训已经开始或完成，记录ID：{}", recordId);
+            throw new BusinessException(ErrorCode.OPERATION_NOT_ALLOWED);
+        }
+
+        record.setStatus(TrainingRecordStatus.IN_PROGRESS);
+        record.setStartTime(LocalDateTime.now());
+        record.setLastAccess(LocalDateTime.now());
+
+        updateById(record);
+        log.info("成功开始培训，记录ID：{}", recordId);
+    }
+
+    @Override
+    public TrainingRecord getTrainingRecord(Long recordId, Integer teacherId) {
+        return lambdaQuery()
+                .eq(TrainingRecord::getRecordId, recordId)
+                .eq(TrainingRecord::getTeacherId, teacherId)
+                .one();
+    }
+
+    @Override
+    public Map<String, Object> getTrainingStatisticsByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
+        Map<String, Object> stats = new HashMap<>();
+
+        // 获取时间范围内的所有培训记录
+        List<TrainingRecord> records = lambdaQuery()
+                .ge(TrainingRecord::getStartTime, startDate)
+                .le(TrainingRecord::getCompleteTime, endDate)
+                .list();
+
+        // 统计各种状态的培训数量
+        long activeCount = records.stream()
+                .filter(r -> r.getStatus() == TrainingRecordStatus.IN_PROGRESS)
+                .count();
+        long completedCount = records.stream()
+                .filter(r -> r.getStatus() == TrainingRecordStatus.COMPLETED)
+                .count();
+        long totalCount = records.size();
+
+        // 计算完成率
+        double completionRate = totalCount > 0 ? (double) completedCount / totalCount * 100 : 0;
+
+        // 统计培训中的教师数量
+        long inTrainingCount = records.stream()
+                .filter(r -> r.getStatus() == TrainingRecordStatus.IN_PROGRESS)
+                .map(TrainingRecord::getTeacherId)
+                .distinct()
+                .count();
+
+        stats.put("activeCount", activeCount);
+        stats.put("completedCount", completedCount);
+        stats.put("totalCount", totalCount);
+        stats.put("completionRate", completionRate);
+        stats.put("inTrainingCount", inTrainingCount);
+
+        return stats;
+    }
+
+    @Override
+    public Map<String, Object> getTeacherTrainingStatistics(Integer teacherId) {
+        Map<String, Object> stats = new HashMap<>();
+
+        // 获取教师的所有培训记录
+        List<TrainingRecord> records = lambdaQuery()
+                .eq(TrainingRecord::getTeacherId, teacherId)
+                .list();
+
+        // 统计各种状态的培训数量
+        long pendingCount = records.stream()
+                .filter(r -> r.getStatus() == TrainingRecordStatus.NOT_STARTED)
+                .count();
+        long completedCount = records.stream()
+                .filter(r -> r.getStatus() == TrainingRecordStatus.COMPLETED)
+                .count();
+        long totalCount = records.size();
+
+        // 计算完成率
+        double completionRate = totalCount > 0 ? (double) completedCount / totalCount * 100 : 0;
+
+        stats.put("pendingCount", pendingCount);
+        stats.put("completedCount", completedCount);
+        stats.put("totalCount", totalCount);
+        stats.put("completionRate", completionRate);
+
+        return stats;
     }
 }

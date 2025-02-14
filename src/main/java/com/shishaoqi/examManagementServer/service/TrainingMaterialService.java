@@ -1,7 +1,10 @@
 package com.shishaoqi.examManagementServer.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.shishaoqi.examManagementServer.entity.TrainingMaterial;
+import com.shishaoqi.examManagementServer.entity.training.TrainingMaterial;
+import com.shishaoqi.examManagementServer.entity.training.TrainingMaterialStatus;
+import com.shishaoqi.examManagementServer.entity.training.TrainingMaterialType;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -16,12 +19,12 @@ public interface TrainingMaterialService extends IService<TrainingMaterial> {
     /**
      * 获取指定类型的培训材料列表
      */
-    List<TrainingMaterial> getMaterialsByType(Integer type);
+    List<TrainingMaterial> getMaterialsByType(TrainingMaterialType type);
 
     /**
      * 更新培训材料状态
      */
-    boolean updateStatus(Long materialId, Integer status);
+    boolean updateStatus(Long materialId, TrainingMaterialStatus status);
 
     /**
      * 更新考试通过分数

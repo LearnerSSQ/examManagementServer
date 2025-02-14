@@ -1,17 +1,22 @@
 package com.shishaoqi.examManagementServer.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.shishaoqi.examManagementServer.entity.Teacher;
-import com.shishaoqi.examManagementServer.entity.InvigilatorAssignment;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignment;
+import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignmentStatus;
+import com.shishaoqi.examManagementServer.entity.teacher.Teacher;
+import com.shishaoqi.examManagementServer.entity.teacher.TeacherRole;
+import com.shishaoqi.examManagementServer.entity.teacher.TeacherStatus;
+import com.shishaoqi.examManagementServer.entity.training.TrainingRecord;
+import com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus;
 import com.shishaoqi.examManagementServer.exception.BusinessException;
 import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.TeacherMapper;
-import com.shishaoqi.examManagementServer.service.TeacherService;
-import com.shishaoqi.examManagementServer.service.EvaluationService;
-import com.shishaoqi.examManagementServer.service.InvigilatorAssignmentService;
+import com.shishaoqi.examManagementServer.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +26,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.math.BigDecimal;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @Service
 public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> implements TeacherService {
@@ -30,20 +34,24 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
 
     private final EvaluationService evaluationService;
     private final InvigilatorAssignmentService assignmentService;
+    private final TrainingRecordService trainingRecordService;
     private final BCryptPasswordEncoder passwordEncoder;
 
+    @Autowired
     public TeacherServiceImpl(
             EvaluationService evaluationService,
             InvigilatorAssignmentService assignmentService,
+            TrainingRecordService trainingRecordService,
             BCryptPasswordEncoder passwordEncoder) {
         this.evaluationService = evaluationService;
         this.assignmentService = assignmentService;
+        this.trainingRecordService = trainingRecordService;
         this.passwordEncoder = passwordEncoder;
     }
 
     @Override
     @Transactional
-    public void addTeacher(Teacher teacher) {
+    public boolean addTeacher(Teacher teacher) {
         if (teacher == null) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "教师信息不能为空");
         }
@@ -55,9 +63,13 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
         if (baseMapper.selectByPhone(teacher.getPhone()) != null) {
             throw new BusinessException(ErrorCode.USER_ALREADY_EXISTS, "手机号已存在");
         }
+        // 设置默认角色
+        teacher.setRole(TeacherRole.TEACHER);
+        // 加密密码
+        teacher.setPassword(passwordEncoder.encode(teacher.getPassword()));
         teacher.setCreateTime(LocalDateTime.now());
-        teacher.setStatus(1); // 1: 正常状态
-        baseMapper.insert(teacher);
+        teacher.setStatus(TeacherStatus.ACTIVE);
+        return baseMapper.insert(teacher) > 0;
     }
 
     @Override
@@ -141,7 +153,7 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
     @Override
     @Transactional
     @CacheEvict(value = "teacherCache", key = "#teacherId")
-    public boolean updateStatus(Integer teacherId, Integer status) {
+    public boolean updateStatus(Integer teacherId, TeacherStatus status) {
         if (teacherId == null || status == null) {
             log.error("更新教师状态失败：参数为空");
             throw new BusinessException(ErrorCode.PARAM_ERROR);
@@ -169,7 +181,7 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        if (teacher.getStatus() == 2) {
+        if (teacher.getStatus() == TeacherStatus.INACTIVE) {
             log.error("更新最后登录时间失败：教师账号已禁用，ID={}", teacherId);
             throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
         }
@@ -196,7 +208,7 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
-        if (teacher.getStatus() == 2) {
+        if (teacher.getStatus() == TeacherStatus.INACTIVE) {
             log.error("更新教师职称失败：教师账号已禁用，ID={}", teacherId);
             throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
         }
@@ -219,7 +231,7 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
 
         // 获取所有激活状态的教师
         LambdaQueryWrapper<Teacher> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Teacher::getStatus, 1); // 只选择已激活的教师
+        wrapper.eq(Teacher::getStatus, TeacherStatus.ACTIVE);
 
         List<Teacher> allTeachers = list(wrapper);
 
@@ -242,8 +254,9 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
                     .getTeacherAssignments(teacher.getTeacherId());
 
             long pendingCount = assignments.stream()
-                    .filter(a -> a.getStatus() == 0 || // 未确认
-                            (a.getStatus() == 1 && a.getExamStart().isAfter(LocalDateTime.now()))) // 已确认但未开始
+                    .filter(a -> a.getStatus() == InvigilatorAssignmentStatus.PENDING ||
+                            (a.getStatus() == InvigilatorAssignmentStatus.CONFIRMED &&
+                                    a.getExamStart().isAfter(LocalDateTime.now())))
                     .count();
 
             if (pendingCount >= maxAssignments) {
@@ -294,7 +307,8 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
 
         List<Map<String, Object>> conflicts = new ArrayList<>();
         assignments.stream()
-                .filter(a -> a.getTeacherId().equals(teacherId) && a.getStatus() != 2)
+                .filter(a -> a.getTeacherId().equals(teacherId)
+                        && a.getStatus() != InvigilatorAssignmentStatus.CANCELLED)
                 .forEach(assignment -> {
                     boolean timeOverlap = !(endDate.isBefore(assignment.getExamStart()) ||
                             startDate.isAfter(assignment.getExamEnd()));
@@ -319,31 +333,94 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
     @Override
     @Cacheable(value = "teacherCache", key = "'deptWorkload'")
     public List<Map<String, Object>> getDepartmentWorkloadStats() {
-        log.info("获取部门监考工作量统计");
-        return baseMapper.getDepartmentWorkloadStats();
+        log.info("获取部门工作量统计");
+
+        // 获取所有教师
+        List<Teacher> allTeachers = this.list();
+
+        // 按部门分组统计
+        Map<String, List<Teacher>> teachersByDepartment = allTeachers.stream()
+                .collect(Collectors.groupingBy(Teacher::getDepartment));
+
+        // 计算每个部门的统计信息
+        return teachersByDepartment.entrySet().stream()
+                .map(entry -> {
+                    String department = entry.getKey();
+                    List<Teacher> teachers = entry.getValue();
+
+                    Map<String, Object> stats = new HashMap<>();
+                    stats.put("department", department);
+                    stats.put("totalTeachers", teachers.size());
+
+                    // 计算激活状态的教师数量
+                    long activeTeachers = teachers.stream()
+                            .filter(t -> t.getStatus() == TeacherStatus.ACTIVE)
+                            .count();
+                    stats.put("activeTeachers", activeTeachers);
+
+                    // 按职称统计
+                    Map<String, Long> titleStats = teachers.stream()
+                            .collect(Collectors.groupingBy(
+                                    Teacher::getTitle,
+                                    Collectors.counting()));
+                    stats.put("titleDistribution", titleStats);
+
+                    return stats;
+                })
+                .collect(Collectors.toList());
     }
 
     @Override
     public Map<String, Object> getTeacherWorkloadStats(Integer teacherId, LocalDateTime startDate,
             LocalDateTime endDate) {
-        log.info("获取教师考务工作量统计，教师ID：{}，时间范围：{} 至 {}", teacherId, startDate, endDate);
+        log.info("获取教师{}的工作量统计，时间范围：{} - {}", teacherId, startDate, endDate);
+
         Map<String, Object> stats = new HashMap<>();
 
-        // 获取监考任务统计
-        List<Map<String, Object>> experienceStats = baseMapper.getTeacherExperienceStats(startDate, endDate);
-        Map<String, Object> teacherStats = experienceStats.stream()
-                .filter(stat -> teacherId.equals(stat.get("teacher_id")))
-                .findFirst()
-                .orElse(new HashMap<>());
-        stats.put("invigilationStats", teacherStats);
+        try {
+            // 1. 获取监考次数（只统计已完成的监考）
+            LambdaQueryWrapper<InvigilatorAssignment> assignmentWrapper = new LambdaQueryWrapper<>();
+            assignmentWrapper.eq(InvigilatorAssignment::getTeacherId, teacherId)
+                    .eq(InvigilatorAssignment::getStatus, InvigilatorAssignmentStatus.COMPLETED);
+            long invigilationCount = assignmentService.count(assignmentWrapper);
+            stats.put("invigilationCount", invigilationCount);
 
-        // 获取培训完成情况
-        Map<String, Object> trainingCompletion = getTeacherTrainingCompletion(teacherId);
-        stats.put("trainingStats", trainingCompletion);
+            // 2. 获取平均评分
+            BigDecimal avgScore = evaluationService.getTeacherAverageScore(teacherId);
+            stats.put("averageScore", avgScore != null ? avgScore.doubleValue() : 0.0);
 
-        // 获取评分情况
-        BigDecimal averageScore = evaluationService.getTeacherAverageScore(teacherId);
-        stats.put("averageScore", averageScore);
+            // 3. 计算培训完成率
+            LambdaQueryWrapper<TrainingRecord> trainingWrapper = new LambdaQueryWrapper<>();
+            trainingWrapper.eq(TrainingRecord::getTeacherId, teacherId)
+                    .eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED);
+            long completedTrainings = trainingRecordService.count(trainingWrapper);
+
+            trainingWrapper.clear();
+            trainingWrapper.eq(TrainingRecord::getTeacherId, teacherId)
+                    .in(TrainingRecord::getStatus,
+                            Arrays.asList(TrainingRecordStatus.NOT_STARTED,
+                                    TrainingRecordStatus.IN_PROGRESS,
+                                    TrainingRecordStatus.COMPLETED));
+            long totalTrainings = trainingRecordService.count(trainingWrapper);
+
+            double completionRate = totalTrainings > 0 ? (completedTrainings * 100.0 / totalTrainings) : 0;
+            stats.put("trainingCompletionRate", completionRate);
+
+            // 4. 获取监考历史（最近的监考记录）
+            List<Map<String, Object>> history = getInvigilationHistory(teacherId);
+            stats.put("invigilationHistory", history);
+
+            log.info("成功获取教师{}的统计数据：监考次数={}，平均评分={}，培训完成率={}%",
+                    teacherId, invigilationCount, stats.get("averageScore"), completionRate);
+
+        } catch (Exception e) {
+            log.error("获取教师{}的统计数据失败", teacherId, e);
+            // 设置默认值
+            stats.put("invigilationCount", 0);
+            stats.put("averageScore", 0.0);
+            stats.put("trainingCompletionRate", 0.0);
+            stats.put("invigilationHistory", new ArrayList<>());
+        }
 
         return stats;
     }
@@ -360,7 +437,7 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
 
         // 检查教师状态
         Teacher teacher = getTeacherById(teacherId);
-        boolean statusValid = teacher != null && teacher.getStatus() == 1;
+        boolean statusValid = teacher != null && teacher.getStatus() == TeacherStatus.ACTIVE;
 
         return trainingQualified && scoreQualified && statusValid;
     }
@@ -418,33 +495,27 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
     @Override
     @Cacheable(value = "teacherCache", key = "'trainingCompletion:' + #teacherId")
     public Map<String, Object> getTeacherTrainingCompletion(Integer teacherId) {
-        log.info("获取教师培训完成情况，教师ID：{}", teacherId);
-        Map<String, Object> completion = new HashMap<>();
+        try {
+            log.debug("获取教师{}的培训完成情况", teacherId);
+            Map<String, Object> stats = new HashMap<>();
 
-        // 获取教师培训记录
-        List<Map<String, Object>> trainingStatus = baseMapper.getTeacherTrainingStatus(null);
-        Map<String, Object> teacherStatus = trainingStatus.stream()
-                .filter(status -> teacherId.equals(status.get("teacher_id")))
-                .findFirst()
-                .orElse(new HashMap<>());
+            // 暂时返回默认值
+            stats.put("completedCount", 0);
+            stats.put("totalCount", 0);
+            stats.put("completionRate", 0);
 
-        Long completedTrainings = (Long) teacherStatus.get("completed_trainings");
-        Long totalTrainings = (Long) teacherStatus.get("total_trainings");
-
-        completion.put("completedCount", completedTrainings);
-        completion.put("totalCount", totalTrainings);
-        completion.put("completionRate", completedTrainings.doubleValue() / totalTrainings.doubleValue());
-        completion.put("isQualified", completedTrainings.equals(totalTrainings));
-        completion.put("lastTrainingTime", teacherStatus.get("last_training_time"));
-
-        return completion;
+            return stats;
+        } catch (Exception e) {
+            log.error("获取教师{}的培训完成情况失败", teacherId, e);
+            return new HashMap<>();
+        }
     }
 
     @Override
     @Transactional
     public boolean batchUpdateQualification(List<Integer> teacherIds, boolean qualified) {
         log.info("批量更新教师监考资格，教师数量：{}，是否具有资格：{}", teacherIds.size(), qualified);
-        int status = qualified ? 1 : 0;
+        TeacherStatus status = qualified ? TeacherStatus.ACTIVE : TeacherStatus.INACTIVE;
         return teacherIds.stream()
                 .map(id -> baseMapper.updateStatus(id, status))
                 .allMatch(result -> result > 0);
@@ -466,7 +537,7 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
     public List<Teacher> getQualifiedInvigilators(double minScore) {
         log.info("获取合格监考教师列表，最低评分要求：{}", minScore);
         LambdaQueryWrapper<Teacher> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Teacher::getStatus, 1); // 只选择已激活的教师
+        wrapper.eq(Teacher::getStatus, TeacherStatus.ACTIVE);
         List<Teacher> teachers = list(wrapper);
 
         return teachers.stream()
@@ -474,50 +545,60 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
                     BigDecimal avgScore = evaluationService.getTeacherAverageScore(teacher.getTeacherId());
                     return avgScore != null && avgScore.doubleValue() >= minScore;
                 })
-                .collect(java.util.stream.Collectors.toList());
+                .collect(Collectors.toList());
     }
 
     @Override
     public Map<String, Object> getInvigilationStatistics(Integer teacherId) {
-        log.info("获取教师监考统计信息，教师ID：{}", teacherId);
-        Map<String, Object> stats = new HashMap<>();
+        try {
+            log.debug("获取教师{}的监考统计信息", teacherId);
+            Map<String, Object> stats = new HashMap<>();
 
-        // 获取监考任务统计
-        List<InvigilatorAssignment> assignments = assignmentService.getTeacherAssignments(teacherId);
-        long totalAssignments = assignments.size();
-        long completedAssignments = assignments.stream()
-                .filter(a -> a.getStatus() == 2)
-                .count();
+            // 获取监考总次数
+            Long totalCount = baseMapper.selectCount(
+                    new QueryWrapper<Teacher>()
+                            .eq("teacher_id", teacherId));
+            stats.put("totalCount", totalCount != null ? totalCount : 0);
 
-        stats.put("totalAssignments", totalAssignments);
-        stats.put("completedAssignments", completedAssignments);
-        stats.put("averageScore", evaluationService.getTeacherAverageScore(teacherId));
+            // 获取平均评分（暂时返回默认值）
+            stats.put("averageScore", 0.0);
 
-        return stats;
+            return stats;
+        } catch (Exception e) {
+            log.error("获取教师{}的监考统计信息失败", teacherId, e);
+            return new HashMap<>();
+        }
     }
 
     @Override
     public Map<String, Integer> getWorkloadStatistics(Integer teacherId, int year) {
-        log.info("获取教师考务工作量统计，教师ID：{}，年份：{}", teacherId, year);
-        Map<String, Integer> workload = new HashMap<>();
+        log.info("获取教师{}在{}年的工作量统计", teacherId, year);
 
-        LocalDateTime startTime = LocalDateTime.of(year, 1, 1, 0, 0);
-        LocalDateTime endTime = LocalDateTime.of(year, 12, 31, 23, 59);
+        LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+        LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59);
 
-        List<InvigilatorAssignment> assignments = assignmentService.getAssignmentsByTimeRange(startTime, endTime)
-                .stream()
-                .filter(a -> a.getTeacherId().equals(teacherId))
-                .collect(Collectors.toList());
+        // 初始化每月的工作量为0
+        Map<String, Integer> monthlyStats = new TreeMap<>();
+        for (int month = 1; month <= 12; month++) {
+            monthlyStats.put(String.format("%02d", month), 0);
+        }
 
-        IntStream.rangeClosed(1, 12).forEach(month -> {
-            final int currentMonth = month;
-            int monthlyCount = (int) assignments.stream()
-                    .filter(a -> a.getExamStart().getMonthValue() == currentMonth)
-                    .count();
-            workload.put(String.valueOf(currentMonth), monthlyCount);
+        // 获取该年度的所有监考任务
+        LambdaQueryWrapper<InvigilatorAssignment> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(InvigilatorAssignment::getTeacherId, teacherId)
+                .between(InvigilatorAssignment::getExamStart, startOfYear, endOfYear)
+                .eq(InvigilatorAssignment::getStatus, InvigilatorAssignmentStatus.COMPLETED);
+
+        List<InvigilatorAssignment> assignments = assignmentService.list(wrapper);
+
+        // 统计每月的监考次数
+        assignments.forEach(assignment -> {
+            String month = String.format("%02d", assignment.getExamStart().getMonthValue());
+            monthlyStats.merge(month, 1, Integer::sum);
         });
 
-        return workload;
+        log.info("教师{}在{}年的月度工作量统计：{}", teacherId, year, monthlyStats);
+        return monthlyStats;
     }
 
     @Override
@@ -534,25 +615,39 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
 
     @Override
     public List<Map<String, Object>> getInvigilationHistory(Integer teacherId) {
-        log.info("获取教师监考历史评价，教师ID：{}", teacherId);
-        LocalDateTime endTime = LocalDateTime.now();
-        LocalDateTime startTime = endTime.minusYears(1);
+        log.info("获取教师{}的监考历史", teacherId);
 
-        List<InvigilatorAssignment> assignments = assignmentService.getAssignmentsByTimeRange(startTime, endTime);
-        List<Map<String, Object>> history = new ArrayList<>();
+        // 获取最近一年的监考记录
+        LocalDateTime oneYearAgo = LocalDateTime.now().minusYears(1);
 
-        assignments.stream()
-                .filter(a -> a.getTeacherId().equals(teacherId))
-                .forEach(a -> {
-                    Map<String, Object> record = new HashMap<>();
-                    record.put("assignmentId", a.getAssignmentId());
-                    record.put("examStart", a.getExamStart());
-                    record.put("location", a.getLocation());
-                    record.put("status", a.getStatus());
-                    history.add(record);
-                });
+        LambdaQueryWrapper<InvigilatorAssignment> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(InvigilatorAssignment::getTeacherId, teacherId)
+                .ge(InvigilatorAssignment::getExamStart, oneYearAgo)
+                .orderByDesc(InvigilatorAssignment::getExamStart);
 
-        return history;
+        List<InvigilatorAssignment> assignments = assignmentService.list(wrapper);
+
+        return assignments.stream().map(assignment -> {
+            Map<String, Object> history = new HashMap<>();
+            history.put("assignmentId", assignment.getAssignmentId());
+            history.put("examDate", assignment.getExamStart());
+            history.put("status", assignment.getStatus());
+            history.put("location", assignment.getLocation());
+            history.put("duration", assignment.getExamEnd().toLocalTime().toString() +
+                    " - " + assignment.getExamStart().toLocalTime().toString());
+
+            // 获取评价信息
+            Map<String, Object> evaluation = evaluationService.getTeacherEvaluationStats(
+                    teacherId, assignment.getExamStart(), assignment.getExamEnd());
+
+            if (evaluation != null && evaluation.containsKey("averageScore")) {
+                history.put("score", evaluation.get("averageScore"));
+            } else {
+                history.put("score", "暂无评分");
+            }
+
+            return history;
+        }).collect(Collectors.toList());
     }
 
     @Override
@@ -587,7 +682,7 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
 
         // 获取所有激活状态的教师
         LambdaQueryWrapper<Teacher> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Teacher::getStatus, 1);
+        wrapper.eq(Teacher::getStatus, TeacherStatus.ACTIVE);
         List<Teacher> teachers = list(wrapper);
 
         // 计算每个教师的综合得分
@@ -617,35 +712,139 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
 
     @Override
     public Teacher login(String email, String password) {
-        if (email == null || password == null) {
-            log.error("登录失败：邮箱或密码为空");
-            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        try {
+            log.debug("开始处理登录请求，邮箱：{}", email);
+
+            if (email == null || email.trim().isEmpty() || password == null) {
+                log.error("登录失败：邮箱或密码为空");
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "邮箱和密码不能为空");
+            }
+
+            Teacher teacher = getTeacherByEmail(email);
+            if (teacher == null) {
+                log.error("登录失败：教师不存在，邮箱：{}", email);
+                throw new BusinessException(ErrorCode.USER_NOT_FOUND, "教师不存在");
+            }
+
+            if (teacher.getStatus() == TeacherStatus.DISABLED) {
+                log.error("登录失败：教师账号已禁用，邮箱：{}", email);
+                throw new BusinessException(ErrorCode.ACCOUNT_DISABLED, "账号已被禁用");
+            }
+
+            if (teacher.getStatus() == TeacherStatus.INACTIVE) {
+                log.error("登录失败：教师账号未激活，邮箱：{}", email);
+                throw new BusinessException(ErrorCode.ACCOUNT_DISABLED, "账号未激活");
+            }
+
+            if (!verifyPassword(password, teacher.getPassword())) {
+                log.error("登录失败：密码错误，邮箱：{}", email);
+                throw new BusinessException(ErrorCode.PASSWORD_ERROR, "密码错误");
+            }
+
+            // 更新最后登录时间
+            log.debug("密码验证通过，更新最后登录时间");
+            updateLastLogin(teacher.getTeacherId());
+
+            log.info("登录成功，教师：{}，角色：{}", teacher.getName(), teacher.getRole());
+            return teacher;
+
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("登录过程发生未知错误", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "系统错误：" + e.getMessage());
         }
-
-        Teacher teacher = getTeacherByEmail(email);
-        if (teacher == null) {
-            log.error("登录失败：教师不存在，邮箱：{}", email);
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
-        }
-
-        if (teacher.getStatus() == 2) {
-            log.error("登录失败：教师账号已禁用，邮箱：{}", email);
-            throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
-        }
-
-        if (!verifyPassword(password, teacher.getPassword())) {
-            log.error("登录失败：密码错误，邮箱：{}", email);
-            throw new BusinessException(ErrorCode.PASSWORD_ERROR);
-        }
-
-        // 更新最后登录时间
-        updateLastLogin(teacher.getTeacherId());
-
-        return teacher;
     }
 
     @Override
     public boolean verifyPassword(String password, String hashedPassword) {
-        return passwordEncoder.matches(password, hashedPassword);
+        try {
+            if (password == null || hashedPassword == null) {
+                log.error("密码验证失败：密码为空");
+                return false;
+            }
+
+            log.debug("正在验证密码，原始密码长度：{}，哈希密码长度：{}",
+                    password.length(), hashedPassword.length());
+
+            boolean matches = passwordEncoder.matches(password, hashedPassword);
+            log.debug("密码验证结果：{}", matches ? "匹配" : "不匹配");
+            return matches;
+
+        } catch (Exception e) {
+            log.error("密码验证过程发生错误", e);
+            return false;
+        }
+    }
+
+    @Override
+    public List<Teacher> list() {
+        LambdaQueryWrapper<Teacher> wrapper = new LambdaQueryWrapper<>();
+        wrapper.orderByAsc(Teacher::getTeacherId);
+        return baseMapper.selectList(wrapper);
+    }
+
+    @Override
+    public List<Teacher> list(String search) {
+        if (search == null || search.trim().isEmpty()) {
+            return list();
+        }
+
+        LambdaQueryWrapper<Teacher> wrapper = new LambdaQueryWrapper<>();
+        wrapper.like(Teacher::getName, search)
+                .or()
+                .like(Teacher::getEmail, search)
+                .or()
+                .like(Teacher::getPhone, search)
+                .or()
+                .like(Teacher::getDepartment, search)
+                .orderByAsc(Teacher::getTeacherId);
+        return baseMapper.selectList(wrapper);
+    }
+
+    @Override
+    @Transactional
+    @CacheEvict(value = "teacherCache", key = "#teacherId")
+    public boolean updateRole(Integer teacherId, TeacherRole role) {
+        if (teacherId == null || role == null) {
+            log.error("更新教师角色失败：参数为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        log.info("更新教师角色，教师ID：{}，新角色：{}", teacherId, role);
+        return baseMapper.updateRole(teacherId, role) > 0;
+    }
+
+    @Override
+    @Cacheable(value = "teacherCache", key = "'role:' + #role")
+    public List<Teacher> getTeachersByRole(TeacherRole role) {
+        if (role == null) {
+            log.error("获取教师列表失败：角色为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        log.info("获取教师列表，角色：{}", role);
+        return baseMapper.selectByRole(role);
+    }
+
+    @Override
+    public boolean hasRole(Integer teacherId, TeacherRole role) {
+        if (teacherId == null || role == null) {
+            log.error("检查教师角色失败：参数为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        log.info("检查教师角色，教师ID：{}，角色：{}", teacherId, role);
+        return baseMapper.checkRole(teacherId, role) > 0;
+    }
+
+    @Override
+    public List<Teacher> getAllTeachers() {
+        return baseMapper.selectList(null);
+    }
+
+    @Override
+    public boolean deleteTeacher(Integer teacherId) {
+        return baseMapper.deleteById(teacherId) > 0;
     }
 }

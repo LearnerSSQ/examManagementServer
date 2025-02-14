@@ -8,6 +8,8 @@ server:
 spring:
   profiles:
     active: dev
+  main:
+    allow-circular-references: true
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/exam_management?useUnicode=true&characterEncoding=UTF-8&characterSetResults=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
@@ -32,8 +34,13 @@ logging:
     root: INFO
     org.springframework.security: DEBUG
     com.shishaoqi.examManagementServer: DEBUG
-    org.springframework.security.crypto.bcrypt: TRACE
-    org.springframework.security.crypto.password: TRACE
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+  file:
+    name: logs/app.log
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
 
 springdoc:
   api-docs:
@@ -47,17 +54,21 @@ springdoc:
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
   type-aliases-package: com.shishaoqi.examManagementServer.entity
-  type-handlers-package: com.exam.config.handler
+  type-enums-package: com.shishaoqi.examManagementServer.entity
+  configuration-properties:
+    enumTypeHandlerPackage: com.shishaoqi.examManagementServer.entity
+  type-handlers-package: com.shishaoqi.examManagementServer.entity
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
-    default-enum-type-handler: org.apache.ibatis.type.EnumOrdinalTypeHandler
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
   global-config:
     db-config:
       id-type: auto
       logic-delete-field: deleted
       logic-delete-value: 1
       logic-not-delete-value: 0
+    banner: false
 
 jwt:
   secret: examManagementSecretKey

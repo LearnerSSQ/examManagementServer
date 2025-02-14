@@ -1,7 +1,8 @@
 package com.shishaoqi.examManagementServer.repository;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.shishaoqi.examManagementServer.entity.Message;
+import com.shishaoqi.examManagementServer.entity.message.Message;
+
 import org.apache.ibatis.annotations.*;
 import java.time.LocalDateTime;
 import java.util.List;

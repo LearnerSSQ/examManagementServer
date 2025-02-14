@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <title>错误 - 考务管理系统</title>
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <link rel="stylesheet" th:href="@{/css/nav.css}">
+    <style>
+        .error-container {
+            max-width: 600px;
+            margin: 100px auto;
+            padding: 30px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .error-icon {
+            font-size: 64px;
+            color: #ff4444;
+            margin-bottom: 20px;
+        }
+
+        .error-title {
+            font-size: 24px;
+            color: #ff4444;
+            margin-bottom: 15px;
+        }
+
+        .error-message {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background: linear-gradient(45deg, #2196F3, #00BCD4);
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: transform 0.3s;
+        }
+
+        .back-button:hover {
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="background"></div>
+    <div class="stars"></div>
+
+    <!-- 引入导航栏 -->
+    <div th:replace="fragments/nav :: nav"></div>
+
+    <div class="main-content">
+        <div class="error-container">
+            <div class="error-icon">⚠️</div>
+            <h1 class="error-title">出错了</h1>
+            <p class="error-message" th:text="${error}">发生错误，请稍后重试</p>
+            <a href="javascript:history.back()" class="back-button">返回上一页</a>
+        </div>
+    </div>
+</body>
+
+</html>

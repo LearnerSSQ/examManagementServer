@@ -1,4 +1,4 @@
-package com.shishaoqi.examManagementServer.entity;
+package com.shishaoqi.examManagementServer.entity.invigilation;
 
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;

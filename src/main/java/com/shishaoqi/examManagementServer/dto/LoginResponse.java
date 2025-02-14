@@ -1,6 +1,7 @@
 package com.shishaoqi.examManagementServer.dto;
 
-import com.shishaoqi.examManagementServer.entity.Teacher;
+import com.shishaoqi.examManagementServer.entity.teacher.Teacher;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
