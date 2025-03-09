@@ -2,8 +2,6 @@ package com.shishaoqi.examManagementServer.controller;
 
 import com.shishaoqi.examManagementServer.common.Result;
 import com.shishaoqi.examManagementServer.entity.teacher.Teacher;
-import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignment;
-import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignmentStatus;
 import com.shishaoqi.examManagementServer.service.TeacherService;
 import com.shishaoqi.examManagementServer.service.InvigilatorAssignmentService;
 import com.shishaoqi.examManagementServer.service.InvigilationRecordService;
@@ -22,11 +20,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 import java.time.LocalDateTime;
-import java.util.stream.Collectors;
 import java.util.ArrayList;
 import org.springframework.security.access.prepost.PreAuthorize;
 import com.shishaoqi.examManagementServer.entity.teacher.TeacherRole;
-import com.shishaoqi.examManagementServer.entity.teacher.TeacherStatus;
+import com.shishaoqi.examManagementServer.service.EvaluationService;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.util.Objects;
 
 @Controller
 @RequestMapping("/api/profile")
@@ -37,19 +36,19 @@ public class ProfileController {
 
     private final TeacherService teacherService;
     private final BCryptPasswordEncoder passwordEncoder;
-    private final InvigilatorAssignmentService invigilatorAssignmentService;
     private final InvigilationRecordService invigilationRecordService;
     private final TrainingRecordService trainingRecordService;
 
+    @Autowired
     public ProfileController(
             TeacherService teacherService,
             BCryptPasswordEncoder passwordEncoder,
             InvigilatorAssignmentService invigilatorAssignmentService,
             InvigilationRecordService invigilationRecordService,
-            TrainingRecordService trainingRecordService) {
+            TrainingRecordService trainingRecordService,
+            EvaluationService evaluationService) {
         this.teacherService = teacherService;
         this.passwordEncoder = passwordEncoder;
-        this.invigilatorAssignmentService = invigilatorAssignmentService;
         this.invigilationRecordService = invigilationRecordService;
         this.trainingRecordService = trainingRecordService;
     }
@@ -58,155 +57,95 @@ public class ProfileController {
     public String getProfile(@AuthenticationPrincipal TeacherUserDetails userDetails, Model model) {
         try {
             log.info("开始获取教师个人信息");
-            log.debug("当前用户角色: {}", userDetails != null ? userDetails.getAuthorities() : "未登录");
-            log.debug("当前用户详情: {}", userDetails);
 
-            if (userDetails == null) {
-                log.error("用户未登录");
-                model.addAttribute("error", "请先登录");
-                return "profile";
+            if (userDetails == null || userDetails.getTeacher() == null) {
+                log.error("用户未登录或教师信息不存在");
+                return handleError(model, "请先登录");
             }
 
-            // 获取教师信息
-            Teacher teacher = null;
-            if (userDetails.getTeacher() != null && userDetails.getTeacher().getTeacherId() != null) {
-                log.debug("尝试获取教师ID为 {} 的信息", userDetails.getTeacher().getTeacherId());
-                teacher = teacherService.getTeacherById(userDetails.getTeacher().getTeacherId());
-                log.debug("获取到的教师信息: {}", teacher);
+            Teacher teacher = userDetails.getTeacher();
+            Integer teacherId = teacher.getTeacherId();
+
+            if (teacherId == null) {
+                log.error("教师ID为空");
+                return handleError(model, "教师信息不完整");
             }
 
-            // 如果是管理员但没有找到教师信息，创建一个基本的教师对象
-            if (teacher == null && userDetails.getAuthorities().stream()
-                    .anyMatch(
-                            a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_EXAM_ADMIN"))) {
-                teacher = new Teacher();
-                if (userDetails.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
-                    teacher.setName("系统管理员");
-                    teacher.setRole(TeacherRole.ADMIN);
-                } else {
-                    teacher.setName("考务管理员");
-                    teacher.setRole(TeacherRole.EXAM_ADMIN);
-                }
-                teacher.setStatus(TeacherStatus.ACTIVE);
-                teacher.setEmail(userDetails.getUsername());
-                log.debug("为管理员创建基本信息: {}", teacher);
-            }
-
-            if (teacher == null) {
-                log.error("无法获取教师信息");
-                model.addAttribute("error", "无法获取教师信息，请确保您已正确登录");
-                return "profile";
-            }
-
-            // 添加基本信息
             model.addAttribute("teacher", teacher);
-            log.debug("已添加教师基本信息到模型");
 
-            // 如果是管理员，不需要获取监考和培训相关的统计信息
-            if (teacher.getRole() != TeacherRole.ADMIN && teacher.getRole() != TeacherRole.EXAM_ADMIN) {
-                try {
-                    // 获取监考统计信息
-                    int currentYear = LocalDateTime.now().getYear();
-                    Map<String, Object> invigilationStats = new HashMap<>();
-                    try {
-                        log.debug("开始获取教师{}的监考统计信息", teacher.getTeacherId());
-                        invigilationStats = invigilationRecordService
-                                .getTeacherInvigilationStats(teacher.getTeacherId(), currentYear);
-                        log.debug("获取到的监考统计信息: {}", invigilationStats);
-                    } catch (Exception e) {
-                        log.warn("获取监考统计信息失败", e);
-                    }
-                    if (invigilationStats == null) {
-                        invigilationStats = new HashMap<>();
-                    }
-                    // 确保必要的统计数据存在
-                    if (!invigilationStats.containsKey("totalRecords")) {
-                        invigilationStats.put("totalRecords", 0);
-                    }
-                    if (!invigilationStats.containsKey("averageScore")) {
-                        invigilationStats.put("averageScore", 0.0);
-                    }
-                    model.addAttribute("invigilationStats", invigilationStats);
-
-                    // 获取监考历史记录
-                    List<InvigilatorAssignment> assignments = new ArrayList<>();
-                    try {
-                        assignments = invigilatorAssignmentService
-                                .getTeacherAssignments(teacher.getTeacherId());
-                        if (assignments != null) {
-                            assignments = assignments.stream()
-                                    .filter(a -> a.getStatus() == InvigilatorAssignmentStatus.COMPLETED)
-                                    .filter(a -> a.getExamStart() != null)
-                                    .sorted((a1, a2) -> a2.getExamStart().compareTo(a1.getExamStart()))
-                                    .collect(Collectors.toList());
-                        }
-                    } catch (Exception e) {
-                        log.warn("获取监考历史记录失败", e);
-                    }
-                    model.addAttribute("invigilationHistory", assignments);
-
-                    // 将工作量统计转换为按月份的格式
-                    Map<String, Integer> monthlyStats = new HashMap<>();
-                    for (int i = 1; i <= 12; i++) {
-                        monthlyStats.put(String.valueOf(i), 0);
-                    }
-
-                    // 统计每月的监考次数
-                    if (assignments != null) {
-                        for (InvigilatorAssignment assignment : assignments) {
-                            if (assignment.getExamStart() != null &&
-                                    assignment.getExamStart().getYear() == currentYear) {
-                                int month = assignment.getExamStart().getMonthValue();
-                                String monthKey = String.valueOf(month);
-                                monthlyStats.put(monthKey, monthlyStats.getOrDefault(monthKey, 0) + 1);
-                            }
-                        }
-                    }
-                    model.addAttribute("workloadStats", monthlyStats);
-
-                    // 获取培训完成信息
-                    Map<String, Object> trainingCompletion = new HashMap<>();
-                    try {
-                        trainingCompletion = trainingRecordService
-                                .getRequiredTrainingStatus(teacher.getTeacherId());
-                        if (trainingCompletion == null) {
-                            trainingCompletion = new HashMap<>();
-                        }
-                    } catch (Exception e) {
-                        log.warn("获取培训完成信息失败", e);
-                    }
-                    // 确保必要的培训数据存在
-                    if (!trainingCompletion.containsKey("completionRate")) {
-                        trainingCompletion.put("completionRate", 0.0);
-                    }
-                    model.addAttribute("trainingCompletion", trainingCompletion);
-
-                    log.info("成功获取教师{}的个人信息", teacher.getName());
-                    return "profile";
-                } catch (Exception e) {
-                    log.error("获取教师统计信息时发生错误", e);
-                }
-            } else {
-                // 为管理员设置空的统计数据
-                Map<String, Object> emptyStats = new HashMap<>();
-                emptyStats.put("totalRecords", 0);
-                emptyStats.put("averageScore", 0.0);
-                model.addAttribute("invigilationStats", emptyStats);
-
-                Map<String, Object> emptyTraining = new HashMap<>();
-                emptyTraining.put("completionRate", 0.0);
-                model.addAttribute("trainingCompletion", emptyTraining);
-
-                model.addAttribute("invigilationHistory", new ArrayList<>());
-                model.addAttribute("workloadStats", new HashMap<>());
+            // 对于管理员角色使用特殊处理
+            if (teacher.getRole() == TeacherRole.ADMIN || teacher.getRole() == TeacherRole.EXAM_ADMIN) {
+                return handleAdminProfile(model);
             }
 
+            // 获取监考统计信息
+            int currentYear = LocalDateTime.now().getYear();
+            Map<String, Object> invigilationStats = invigilationRecordService
+                    .getTeacherInvigilationStats(teacherId, currentYear);
+            model.addAttribute("invigilationStats", invigilationStats);
+
+            // 获取监考历史记录
+            List<Map<String, Object>> invigilationHistory = invigilationRecordService
+                    .getTeacherInvigilationHistory(teacherId);
+            model.addAttribute("invigilationHistory", invigilationHistory);
+
+            // 获取培训完成情况
+            Map<String, Object> trainingCompletion = trainingRecordService
+                    .getRequiredTrainingStatus(teacherId);
+            model.addAttribute("trainingCompletion", trainingCompletion);
+
+            // 获取工作量统计
+            Map<String, Integer> workloadStats = calculateWorkloadStats(invigilationHistory);
+            model.addAttribute("workloadStats", workloadStats);
+
+            log.info("成功获取教师{}的个人信息", teacher.getName());
             return "profile";
+
         } catch (Exception e) {
             log.error("获取个人信息时发生系统异常", e);
-            model.addAttribute("error", "系统错误，请稍后重试");
-            return "profile";
+            return handleError(model, "系统错误，请稍后重试");
         }
+    }
+
+    private String handleAdminProfile(Model model) {
+        Map<String, Object> emptyStats = new HashMap<>();
+        emptyStats.put("totalRecords", 0);
+        emptyStats.put("averageScore", 0.0);
+
+        Map<String, Object> emptyTraining = new HashMap<>();
+        emptyTraining.put("completionRate", 0.0);
+
+        model.addAttribute("invigilationStats", emptyStats);
+        model.addAttribute("trainingCompletion", emptyTraining);
+        model.addAttribute("invigilationHistory", new ArrayList<>());
+        model.addAttribute("workloadStats", new HashMap<>());
+
+        return "profile";
+    }
+
+    private String handleError(Model model, String message) {
+        model.addAttribute("error", message);
+        return "profile";
+    }
+
+    private Map<String, Integer> calculateWorkloadStats(List<Map<String, Object>> history) {
+        Map<String, Integer> monthlyStats = new HashMap<>();
+        for (int i = 1; i <= 12; i++) {
+            monthlyStats.put(String.valueOf(i), 0);
+        }
+
+        if (history != null) {
+            history.stream()
+                    .map(record -> (LocalDateTime) record.get("examTime")) // 修改这里，与返回的数据结构对应
+                    .filter(Objects::nonNull)
+                    .filter(date -> date.getYear() == LocalDateTime.now().getYear())
+                    .forEach(date -> {
+                        String month = String.valueOf(date.getMonthValue());
+                        monthlyStats.merge(month, 1, Integer::sum);
+                    });
+        }
+
+        return monthlyStats;
     }
 
     @PostMapping("/update")

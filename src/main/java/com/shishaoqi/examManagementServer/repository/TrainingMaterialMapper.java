@@ -115,6 +115,48 @@ public interface TrainingMaterialMapper extends BaseMapper<TrainingMaterial> {
                         @Param("recordStatus") TrainingRecordStatus recordStatus);
 
         /**
+         * 获取培训材料进度
+         */
+        @Select("SELECT tm.material_id, tm.title, " +
+                        "tr.progress, tr.status as record_status, " +
+                        "tr.start_time, tr.end_time, tr.quiz_score " +
+                        "FROM training_material tm " +
+                        "LEFT JOIN training_record tr ON tm.material_id = tr.material_id " +
+                        "AND tr.teacher_id = #{teacherId} " +
+                        "WHERE tm.material_id = #{materialId}")
+        Map<String, Object> selectMaterialProgress(
+                        @Param("materialId") Long materialId,
+                        @Param("teacherId") Integer teacherId);
+
+        /**
+         * 获取培训材料反馈统计
+         */
+        @Select("SELECT tm.material_id, tm.title, " +
+                        "COUNT(DISTINCT tr.teacher_id) as total_feedbacks, " +
+                        "AVG(tr.feedback_score) as average_score, " +
+                        "COUNT(DISTINCT CASE WHEN tr.feedback_comment IS NOT NULL THEN tr.teacher_id END) as comment_count "
+                        +
+                        "FROM training_material tm " +
+                        "LEFT JOIN training_record tr ON tm.material_id = tr.material_id " +
+                        "WHERE tm.material_id = #{materialId} " +
+                        "GROUP BY tm.material_id, tm.title")
+        Map<String, Object> selectMaterialFeedbackStats(
+                        @Param("materialId") Long materialId);
+
+        /**
+         * 获取推荐的培训材料
+         */
+        @Select("SELECT tm.* FROM training_material tm " +
+                        "LEFT JOIN training_record tr ON tm.material_id = tr.material_id " +
+                        "AND tr.teacher_id = #{teacherId} " +
+                        "WHERE tr.record_id IS NULL " +
+                        "AND tm.status = 'PUBLISHED' " +
+                        "AND tm.create_time <= NOW() " +
+                        "ORDER BY tm.is_required DESC, tm.create_time DESC")
+        List<TrainingMaterial> selectRecommendedMaterials(
+                        @Param("teacherId") Integer teacherId);
+
+        /**
          * 更新培训材料状态
          */
         @Update("UPDATE training_material SET status = #{status} WHERE material_id = #{materialId}")

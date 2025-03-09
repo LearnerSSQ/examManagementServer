@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.shishaoqi.examManagementServer.entity.training.TrainingMaterial;
 import com.shishaoqi.examManagementServer.entity.training.TrainingMaterialStatus;
 import com.shishaoqi.examManagementServer.entity.training.TrainingMaterialType;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -35,69 +37,81 @@ public interface TrainingMaterialService extends IService<TrainingMaterial> {
      * 添加培训材料
      */
     void addTrainingMaterial(TrainingMaterial material);
+    /**
+     * 根据关键字搜索培训材料
+     * @param keyword 搜索关键字
+     * @return 匹配的培训材料列表
+     */
+    List<TrainingMaterial> search(String keyword);
 
     /**
      * 更新培训材料
      */
     void updateTrainingMaterial(TrainingMaterial material);
-
     /**
      * 获取最新的培训材料
      */
     List<TrainingMaterial> getLatestMaterials(Integer limit);
-
     /**
      * 获取教师未完成的培训材料
      */
     List<TrainingMaterial> getUncompletedMaterials(Integer teacherId);
-
     /**
      * 获取培训材料的学习情况统计
      */
     List<Map<String, Object>> getMaterialStatistics(LocalDateTime startDate, LocalDateTime endDate);
-
     /**
      * 获取必修培训材料列表
      */
     List<TrainingMaterial> getRequiredMaterials();
-
     /**
      * 获取培训材料的完成率统计
      */
     List<Map<String, Object>> getMaterialCompletionRates();
-
     /**
      * 批量更新培训材料状态
      */
     void batchUpdateStatus(List<TrainingMaterial> materials);
-
     /**
      * 获取部门培训材料完成情况
      */
     List<Map<String, Object>> getDepartmentMaterialStats();
-
     /**
      * 获取培训材料详情
      */
     TrainingMaterial getMaterialById(Long materialId);
-
     /**
      * 检查培训材料是否已过期
      */
     boolean checkMaterialExpiration(Long materialId);
-
     /**
      * 获取培训材料学习进度
      */
     Map<String, Object> getMaterialProgress(Long materialId, Integer teacherId);
-
     /**
      * 获取培训材料的反馈统计
      */
     Map<String, Object> getMaterialFeedbackStats(Long materialId);
-
     /**
      * 获取推荐的培训材料
      */
     List<TrainingMaterial> getRecommendedMaterials(Integer teacherId);
+    /**
+     * 创建培训材料并上传文件
+     */
+    TrainingMaterial createMaterial(TrainingMaterial material, MultipartFile file) throws IOException;
+    /**
+     * 删除培训材料
+     */
+    void deleteMaterial(Long materialId) throws IOException;
+    /**
+     * 更新培训材料
+     */
+    TrainingMaterial updateMaterial(TrainingMaterial material, MultipartFile file) throws IOException;
+    /**
+     * 获取培训材料的预览URL
+     * @param materialId 培训材料ID
+     * @return 预览URL
+     */
+    String getPreviewUrl(Long materialId);
 }

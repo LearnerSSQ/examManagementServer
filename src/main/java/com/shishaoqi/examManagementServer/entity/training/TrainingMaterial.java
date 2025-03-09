@@ -50,7 +50,7 @@ public class TrainingMaterial {
     private TrainingMaterialStatus status;
 
     /**
-     * 材料内容（文档类型存储路径，测验类型存储JSON）
+     * 材料内容（存储路径）
      */
     @TableField("content")
     private String content;
@@ -84,4 +84,16 @@ public class TrainingMaterial {
      */
     @TableField("tags")
     private String tags;
+
+    /**
+     * 通过分数（仅适用于测验类型）
+     */
+    @TableField("pass_score")
+    private Integer passScore;
+
+    /**
+     * 过期时间
+     */
+    @TableField("expire_date")
+    private LocalDateTime expireDate;
 }

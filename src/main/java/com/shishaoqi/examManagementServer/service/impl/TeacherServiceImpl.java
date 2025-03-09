@@ -3,6 +3,8 @@ package com.shishaoqi.examManagementServer.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignment;
 import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignmentStatus;
 import com.shishaoqi.examManagementServer.entity.teacher.Teacher;
@@ -14,6 +16,7 @@ import com.shishaoqi.examManagementServer.exception.BusinessException;
 import com.shishaoqi.examManagementServer.exception.ErrorCode;
 import com.shishaoqi.examManagementServer.repository.TeacherMapper;
 import com.shishaoqi.examManagementServer.service.*;
+import com.shishaoqi.examManagementServer.common.PageResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,8 +70,9 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
         teacher.setRole(TeacherRole.TEACHER);
         // 加密密码
         teacher.setPassword(passwordEncoder.encode(teacher.getPassword()));
-        teacher.setCreateTime(LocalDateTime.now());
+        // 设置默认状态为已激活
         teacher.setStatus(TeacherStatus.ACTIVE);
+        teacher.setCreateTime(LocalDateTime.now());
         return baseMapper.insert(teacher) > 0;
     }
 
@@ -410,8 +414,8 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
             List<Map<String, Object>> history = getInvigilationHistory(teacherId);
             stats.put("invigilationHistory", history);
 
-            log.info("成功获取教师{}的统计数据：监考次数={}，平均评分={}，培训完成率={}%",
-                    teacherId, invigilationCount, stats.get("averageScore"), completionRate);
+            log.info("成功获取教师{}的统计数据：监考次数={}，平均评分={}，培训完成率={}%", teacherId, invigilationCount, stats.get("averageScore"),
+                    completionRate);
 
         } catch (Exception e) {
             log.error("获取教师{}的统计数据失败", teacherId, e);
@@ -844,7 +848,144 @@ public class TeacherServiceImpl extends ServiceImpl<TeacherMapper, Teacher> impl
     }
 
     @Override
+    @Transactional
+    public boolean batchDeleteTeachers(List<Integer> teacherIds) {
+        try {
+            if (teacherIds == null || teacherIds.isEmpty()) {
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "教师ID列表不能为空");
+            }
+
+            // 检查每个教师是否可以被删除
+            for (Integer teacherId : teacherIds) {
+                Teacher teacher = getById(teacherId);
+                if (teacher == null) {
+                    throw new BusinessException(ErrorCode.NOT_FOUND, "教师不存在，ID: " + teacherId);
+                }
+
+                // 检查关联数据
+                List<InvigilatorAssignment> assignments = assignmentService.getTeacherAssignments(teacherId);
+                if (!assignments.isEmpty()) {
+                    throw new BusinessException(ErrorCode.OPERATION_FAILED,
+                            "教师" + teacherId + "还有监考记录，无法删除");
+                }
+
+                List<TrainingRecord> trainingRecords = trainingRecordService.getTeacherTrainingRecords(teacherId);
+                if (!trainingRecords.isEmpty()) {
+                    throw new BusinessException(ErrorCode.OPERATION_FAILED,
+                            "教师" + teacherId + "还有培训记录，无法删除");
+                }
+            }
+
+            // 执行批量删除
+            return removeByIds(teacherIds);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("批量删除教师失败", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "批量删除失败：" + e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public boolean batchUpdateStatus(List<Integer> teacherIds, String status) {
+        try {
+            if (teacherIds == null || teacherIds.isEmpty()) {
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "教师ID列表不能为空");
+            }
+            if (status == null) {
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "状态不能为空");
+            }
+
+            TeacherStatus newStatus = TeacherStatus.valueOf(status);
+            List<Teacher> teachers = listByIds(teacherIds);
+
+            if (teachers.size() != teacherIds.size()) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "部分教师不存在");
+            }
+
+            teachers.forEach(teacher -> teacher.setStatus(newStatus));
+            return updateBatchById(teachers);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "无效的状态值：" + status);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("批量更新教师状态失败", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "批量更新状态失败：" + e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
     public boolean deleteTeacher(Integer teacherId) {
-        return baseMapper.deleteById(teacherId) > 0;
+        // 检查教师是否存在
+        Teacher teacher = getById(teacherId);
+        if (teacher == null) {
+            log.warn("要删除的教师不存在，ID: {}", teacherId);
+            return false;
+        }
+
+        try {
+            // 检查是否有关联的监考记录
+            List<InvigilatorAssignment> assignments = assignmentService.getTeacherAssignments(teacherId);
+            if (!assignments.isEmpty()) {
+                log.warn("教师{}还有{}条监考记录，无法删除", teacherId, assignments.size());
+                throw new BusinessException(ErrorCode.OPERATION_FAILED, "该教师还有监考记录，请先处理相关记录");
+            }
+
+            // 检查是否有关联的培训记录
+            List<TrainingRecord> trainingRecords = trainingRecordService.getTeacherTrainingRecords(teacherId);
+            if (!trainingRecords.isEmpty()) {
+                log.warn("教师{}还有{}条培训记录，无法删除", teacherId, trainingRecords.size());
+                throw new BusinessException(ErrorCode.OPERATION_FAILED, "该教师还有培训记录，请先处理相关记录");
+            }
+
+            // 如果要删除的是管理员，需要检查是否是最后一个管理员
+            if (TeacherRole.ADMIN.equals(teacher.getRole())) {
+                long adminCount = count(new LambdaQueryWrapper<Teacher>()
+                        .eq(Teacher::getRole, TeacherRole.ADMIN));
+                if (adminCount <= 1) {
+                    throw new BusinessException(ErrorCode.OPERATION_FAILED, "系统至少需要保留一个管理员");
+                }
+            }
+
+            // 软删除：将教师状态设置为已禁用
+            teacher.setStatus(TeacherStatus.DISABLED);
+            return updateById(teacher);
+
+            // 如果确实需要物理删除，请确保先删除所有关联数据
+            // return removeById(teacherId);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("删除教师失败，ID: {}", teacherId, e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除教师失败：" + e.getMessage());
+        }
+    }
+
+    @Override
+    public PageResult<Teacher> getTeachersByPage(int page, int size) {
+        // 确保页码和大小在合理范围内
+        page = Math.max(1, page);
+        size = Math.max(1, Math.min(size, 100)); // 限制每页最大100条
+
+        // 创建分页请求
+        Page<Teacher> pageRequest = new Page<>(page, size);
+
+        // 构建查询条件
+        LambdaQueryWrapper<Teacher> wrapper = new LambdaQueryWrapper<>();
+        wrapper.orderByAsc(Teacher::getTeacherId);
+
+        // 执行分页查询
+        IPage<Teacher> teacherPage = baseMapper.selectPage(pageRequest, wrapper);
+
+        // 返回分页结果
+        return new PageResult<>(
+                teacherPage.getRecords(),
+                teacherPage.getTotal(),
+                (int) teacherPage.getPages(),
+                (int) teacherPage.getCurrent(),
+                (int) teacherPage.getSize());
     }
 }

@@ -12,11 +12,14 @@
     z-index: 1000;
     padding: 0;
     margin: 0;
+    overflow-y: auto;
+    transition: transform 0.3s ease;
 }
 
 .nav-brand {
     padding: 2rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: var(--font-size-xl);
 }
 
 .nav-brand h1 {
@@ -127,11 +130,15 @@
 @media (max-width: 768px) {
     .navbar {
         width: 100%;
-        height: auto;
-        position: fixed;
+        height: 60px;
         bottom: 0;
         top: auto;
-        padding: 1rem;
+        flex-direction: row;
+        align-items: center;
+        padding: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
+        transform: translateY(0);
     }
 
     .nav-brand {
@@ -140,8 +147,10 @@
 
     .nav-menu {
         flex-direction: row;
+        padding: 0 var(--spacing-md);
+        margin: 0;
+        width: 100%;
         justify-content: space-around;
-        padding: 0;
     }
 
     .nav-group {
@@ -153,14 +162,14 @@
     }
 
     .nav-item {
+        padding: var(--spacing-xs) var(--spacing-sm);
         flex-direction: column;
-        padding: 0.5rem;
-        font-size: 0.8rem;
-        text-align: center;
+        font-size: var(--font-size-sm);
     }
 
     .nav-item i {
-        margin: 0 0 0.3rem 0;
+        margin: 0 0 var(--spacing-xs) 0;
+        font-size: var(--font-size-lg);
     }
 
     .nav-bottom {
@@ -174,6 +183,12 @@
 }
 
 /* 主内容区域的样式 */
+body .main-content {
+    margin-left: 240px;
+    padding: 2rem;
+    min-height: 100vh;
+}
+
 .main-content {
     margin-left: 240px;
     padding: 2rem;

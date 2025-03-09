@@ -1,8 +1,17 @@
 .main-content {
-    padding: var(--spacing-lg);
-    max-width: 1400px;
+    padding: var(--spacing-xl);
+    max-width: 100%;
     margin: 0 auto;
-    padding-top: var(--spacing-xl);
+    min-height: 80vh;
+    box-sizing: border-box;
+}
+
+.teachers-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
 }
 
 .page-header {
@@ -21,11 +30,22 @@
     gap: var(--spacing-lg);
 }
 
+/* 头部控件布局 */
+.header-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: var(--spacing-lg);
+}
+
 .search-bar {
     display: flex;
     gap: var(--spacing-md);
     align-items: center;
     flex: 1;
+    margin-left: var(--spacing-lg);
+    max-width: 300px;
 }
 
 .search-input {
@@ -157,7 +177,7 @@
     margin-top: var(--spacing-lg);
 }
 
-/* 模态框样式 */
+/* 模态框样式优化 */
 .modal {
     display: none;
     position: fixed;
@@ -168,76 +188,378 @@
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(5px);
     z-index: 1000;
+    align-items: center;
+    justify-content: center;
 }
 
 .modal-content {
-    position: relative;
-    background: var(--color-card-bg);
-    margin: 5% auto;
-    padding: var(--spacing-lg);
     width: 90%;
     max-width: 600px;
+    background: var(--color-card-bg);
     border-radius: var(--border-radius-lg);
     border: 1px solid var(--color-border);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    position: relative;
+    animation: modalFadeIn 0.3s ease;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 400px;
+}
+
+.modal-body {
+    flex: 1;
+    padding: var(--spacing-lg);
+    overflow-y: auto;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-card-hover);
+    border-bottom-left-radius: var(--border-radius-lg);
+    border-bottom-right-radius: var(--border-radius-lg);
+}
+
+.modal-footer .btn {
+    min-width: 100px;
+}
+
+.form-group {
+    margin-bottom: var(--spacing-lg);
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: var(--spacing-md);
+    align-items: center;
+}
+
+.form-group label {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.role-checkbox-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border);
 }
 
 .modal-title {
     font-size: var(--font-size-xl);
-    margin-bottom: var(--spacing-lg);
-    text-align: center;
+    color: var(--color-text);
+    margin: 0;
 }
 
-.close-modal {
-    position: absolute;
-    right: var(--spacing-lg);
-    top: var(--spacing-lg);
+.close-button {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
     font-size: var(--font-size-xl);
-    color: var(--text-secondary);
     cursor: pointer;
-    transition: color var(--transition-speed) ease;
+    padding: 0;
+    transition: color 0.3s ease;
 }
 
-.close-modal:hover {
-    color: var(--text-primary);
+.close-button:hover {
+    color: var(--color-text);
+}
+
+#teacherForm {
+    padding: var(--spacing-lg);
 }
 
 .form-group {
-    margin-bottom: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
 }
 
 .form-group label {
     display: block;
     margin-bottom: var(--spacing-xs);
-    color: var(--text-secondary);
+    color: var(--color-text-secondary);
     font-size: var(--font-size-md);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
 }
 
-.form-group label i {
-    color: var(--color-primary);
-    width: 20px;
-    text-align: center;
-}
-
-.form-group input,
-.form-group select {
+.form-control {
     width: 100%;
     padding: var(--spacing-sm);
     background: var(--color-card-hover);
     border: 1px solid var(--color-border);
     border-radius: var(--border-radius-sm);
-    color: var(--text-primary);
+    color: var(--color-text);
     font-size: var(--font-size-md);
     transition: all var(--transition-speed) ease;
 }
 
-.form-group input:focus,
-.form-group select:focus {
+.form-control:focus {
     outline: none;
     border-color: var(--color-primary);
     background: var(--color-card-bg);
+    box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb), 0.2);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+    margin-top: var(--spacing-lg);
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 分页样式 */
+.pagination-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--color-card-bg);
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--color-border);
+}
+
+.pagination-info {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.btn-pagination {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--color-card-hover);
+    border: 1px solid var(--color-border);
+    color: var(--text-secondary);
+    transition: all var(--transition-speed) ease;
+}
+
+.btn-pagination:hover {
+    background: var(--color-primary);
+    color: var(--text-primary);
+    border-color: var(--color-primary);
+}
+
+.btn-pagination:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.page-numbers {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+    margin: 0 var(--spacing-sm);
+}
+
+.page-size-select {
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-card-bg);
+    color: var(--text-primary);
+    margin-right: var(--spacing-md);
+}
+
+.page-info {
+    color: var(--text-secondary);
+    margin: 0 var(--spacing-md);
+}
+
+/* 通知样式 */
+.notification {
+    position: fixed;
+    bottom: var(--spacing-lg);
+    right: var(--spacing-lg);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-radius: var(--border-radius-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    z-index: 10000;
+    box-shadow: var(--shadow-md);
+    animation: slideIn 0.3s ease;
+}
+
+.notification.error {
+    background: var(--color-error);
+    color: var(--text-on-error);
+}
+
+.notification.info {
+    background: var(--color-info);
+    color: var(--text-on-info);
+}
+
+.notification.success {
+    background: var(--color-success);
+    color: var(--text-on-success);
+}
+
+.notification .icon {
+    font-size: var(--font-size-lg);
+}
+
+.notification .message {
+    font-size: var(--font-size-md);
+}
+
+.notification.fade-out {
+    animation: fadeOut 0.5s ease forwards;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .notification {
+        bottom: var(--spacing-md);
+        right: var(--spacing-md);
+        left: var(--spacing-md);
+        width: auto;
+    }
+}
+
+.teachers-table {
+    width: 100%;
+    min-width: 800px;
+    /* 设置最小宽度确保内容不会过度压缩 */
+    max-width: 100%;
+    overflow-x: auto;
+    background: var(--color-card-bg);
+    border-radius: var(--border-radius-lg);
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.teachers-table th,
+.teachers-table td {
+    padding: var(--spacing-md);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+/* 固定列宽 */
+.teachers-table th:nth-child(1),
+.teachers-table td:nth-child(1) {
+    width: 50px;
+    /* 复选框列 */
+}
+
+.teachers-table th:nth-child(2),
+.teachers-table td:nth-child(2) {
+    width: 80px;
+    /* ID列 */
+}
+
+.teachers-table th:nth-child(3),
+.teachers-table td:nth-child(3) {
+    width: 120px;
+    /* 姓名列 */
+}
+
+.teachers-table th:nth-child(4),
+.teachers-table td:nth-child(4) {
+    width: 150px;
+    /* 部门列 */
+}
+
+.teachers-table th:nth-child(5),
+.teachers-table td:nth-child(5) {
+    width: 120px;
+    /* 职称列 */
+}
+
+.teachers-table th:nth-child(6),
+.teachers-table td:nth-child(6) {
+    width: 200px;
+    /* 邮箱列 */
+}
+
+.teachers-table th:nth-child(7),
+.teachers-table td:nth-child(7) {
+    width: 120px;
+    /* 手机列 */
+}
+
+.teachers-table th:nth-child(8),
+.teachers-table td:nth-child(8) {
+    width: 100px;
+    /* 状态列 */
+}
+
+.teachers-table th:nth-child(9),
+.teachers-table td:nth-child(9) {
+    width: 120px;
+    /* 操作列 */
+}
+
+/* 表格容器样式 */
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    background: var(--color-card-bg);
+    border-radius: var(--border-radius-lg);
+    margin-top: var(--spacing-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    margin-top: var(--spacing-lg);
+    background: var(--color-card-bg);
+    border-radius: var(--border-radius-lg);
+    padding: var(--spacing-md);
 }
 
 @media (max-width: 768px) {
@@ -252,8 +574,15 @@
         gap: var(--spacing-md);
     }
 
+    .header-controls {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
     .search-bar {
         width: 100%;
+        margin-left: 0;
+        max-width: 100%;
     }
 
     .search-input {
@@ -265,7 +594,13 @@
     }
 
     .modal-content {
-        margin: 10% var(--spacing-sm);
+        width: 95%;
+        margin: var(--spacing-md);
+    }
+
+    .modal-header,
+    #teacherForm,
+    .modal-footer {
         padding: var(--spacing-md);
     }
 }

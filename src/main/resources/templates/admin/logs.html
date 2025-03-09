@@ -3,52 +3,169 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>系统日志</title>
+    <title>系统日志 - 考务管理系统</title>
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" th:href="@{/css/base.css}">
     <link rel="stylesheet" th:href="@{/css/nav.css}">
+    <link rel="stylesheet" th:href="@{/css/logs.css}">
 </head>
 
 <body>
+    <div class="background"></div>
+    <div class="stars"></div>
+
     <div th:replace="~{fragments/nav :: nav}"></div>
 
-    <div class="container">
-        <h1>系统日志</h1>
-        <div class="logs-panel">
-            <div class="filter-section">
-                <select id="logLevel" class="form-control">
-                    <option value="ALL">所有级别</option>
-                    <option value="ERROR">错误</option>
-                    <option value="WARN">警告</option>
-                    <option value="INFO">信息</option>
-                    <option value="DEBUG">调试</option>
-                </select>
-
-                <input type="date" id="startDate" class="form-control">
-                <input type="date" id="endDate" class="form-control">
-
-                <button id="refreshBtn" class="btn btn-primary">刷新</button>
+    <div class="main-content">
+        <div class="logs-container">
+            <div class="logs-header">
+                <h1>系统日志</h1>
+                <div class="header-controls">
+                    <div class="filter-group">
+                        <label for="logLevel">日志级别：</label>
+                        <select id="logLevel" class="filter-select">
+                            <option value="">全部级别</option>
+                            <option value="ERROR">错误</option>
+                            <option value="WARN">警告</option>
+                            <option value="INFO">信息</option>
+                            <option value="DEBUG">调试</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <input type="text" id="searchInput" class="search-input" placeholder="搜索日志...">
+                    </div>
+                    <div class="action-group">
+                        <button class="btn refresh-btn" onclick="refreshLogs()">
+                            <i class="fas fa-sync"></i> 刷新
+                        </button>
+                        <button class="btn export-btn" onclick="exportLogs()">
+                            <i class="fas fa-download"></i> 导出
+                        </button>
+                        <div class="auto-refresh">
+                            <input type="checkbox" id="autoRefresh">
+                            <label for="autoRefresh">自动刷新</label>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div class="logs-content">
-                <pre id="logContent">正在加载日志...</pre>
+            <div class="log-viewer">
+                <div id="logContent" class="log-content">
+                    <!-- 日志内容将通过JavaScript动态加载 -->
+                </div>
+            </div>
+
+            <div class="logs-footer">
+                <div class="log-stats">
+                    <span>总计：<span id="logCount">0</span> 条日志</span>
+                    <span>最后更新：<span id="lastUpdate">--</span></span>
+                </div>
             </div>
         </div>
     </div>
 
+    <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <script>
+        let autoRefreshInterval;
+
         function refreshLogs() {
             fetch('/api/admin/logs/content')
-                .then(response => response.text())
-                .then(content => {
-                    document.getElementById('logContent').textContent = content;
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.code === 200 && data.data) {
+                        const logContent = document.getElementById('logContent');
+                        logContent.innerHTML = data.data;
+                        updateStats();
+                    } else {
+                        console.error('获取日志失败：', data.message);
+                        document.getElementById('logContent').innerHTML =
+                            '<div class="log-error">获取日志失败：' + data.message + '</div>';
+                    }
                 })
                 .catch(error => {
-                    console.error('刷新日志失败：', error);
-                    alert('刷新日志失败');
+                    console.error('获取日志失败：', error);
+                    document.getElementById('logContent').innerHTML =
+                        '<div class="log-error">获取日志失败：' + error.message + '</div>';
                 });
         }
 
-        document.getElementById('refreshBtn').addEventListener('click', refreshLogs);
+        // 页面加载完成后立即刷新日志
+        document.addEventListener('DOMContentLoaded', function () {
+            refreshLogs();
+        });
+
+        function formatLogContent(logs) {
+            return logs.split('\n').map(log => {
+                const level = getLogLevel(log);
+                return `<div class="log-line ${level ? 'log-level-' + level.toLowerCase() : ''}">${log}</div>`;
+            }).join('');
+        }
+
+        function getLogLevel(logLine) {
+            const levels = ['ERROR', 'WARN', 'INFO', 'DEBUG'];
+            for (const level of levels) {
+                if (logLine.includes(level)) {
+                    return level;
+                }
+            }
+            return null;
+        }
+
+        function updateStats() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = now.toLocaleString();
+            const visibleLogs = document.querySelectorAll('.log-line:not([style*="display: none"])').length;
+            document.getElementById('logCount').textContent = visibleLogs;
+        }
+
+        function exportLogs() {
+            window.location.href = '/api/admin/logs/download';
+        }
+
+        // 搜索功能
+        document.getElementById('searchInput').addEventListener('input', function () {
+            const searchText = this.value.toLowerCase();
+            document.querySelectorAll('.log-line').forEach(line => {
+                const text = line.textContent.toLowerCase();
+                line.style.display = text.includes(searchText) ? '' : 'none';
+            });
+        });
+
+        // 日志级别筛选
+        document.getElementById('logLevel').addEventListener('change', function () {
+            const selectedLevel = this.value.toLowerCase();
+            const logLines = document.querySelectorAll('.log-line');
+
+            logLines.forEach(line => {
+                if (!selectedLevel) {
+                    line.style.display = '';
+                    return;
+                }
+
+                const hasLevel = line.classList.contains(`log-level-${selectedLevel}`);
+                line.style.display = hasLevel ? '' : 'none';
+            });
+
+            // 更新显示的日志数量
+            updateStats();
+        });
+
+        // 自动刷新
+        document.getElementById('autoRefresh').addEventListener('change', function () {
+            if (this.checked) {
+                autoRefreshInterval = setInterval(refreshLogs, 5000);
+            } else {
+                clearInterval(autoRefreshInterval);
+            }
+        });
+
+        // 初始加载
+        refreshLogs();
     </script>
 </body>
 

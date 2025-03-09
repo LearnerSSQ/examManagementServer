@@ -776,4 +776,50 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
 
         return statistics;
     }
+
+    @Override
+    public List<Map<String, Object>> getTeacherInvigilationHistory(Integer teacherId) {
+        if (teacherId == null) {
+            log.error("获取教师监考历史失败：教师ID为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+
+        // 获取该教师的所有监考安排
+        List<InvigilatorAssignment> assignments = assignmentService.lambdaQuery()
+                .eq(InvigilatorAssignment::getTeacherId, teacherId)
+                .orderByDesc(InvigilatorAssignment::getExamStart)
+                .list();
+
+        List<Map<String, Object>> history = new ArrayList<>();
+        for (InvigilatorAssignment assignment : assignments) {
+            Map<String, Object> record = new HashMap<>();
+            record.put("assignmentId", assignment.getAssignmentId());
+            record.put("examTime", assignment.getExamStart());
+            record.put("courseName", assignment.getCourseName());
+            record.put("location", assignment.getLocation());
+            record.put("status", assignment.getStatus());
+
+            // 获取评价信息
+            Map<String, Object> evaluation = baseMapper.getTeacherEvaluations(List.of(assignment.getAssignmentId()))
+                    .stream()
+                    .findFirst()
+                    .orElse(null);
+
+            if (evaluation != null) {
+                record.put("evaluation", evaluation);
+            }
+
+            // 获取该监考安排的记录
+            List<InvigilationRecord> records = lambdaQuery()
+                    .eq(InvigilationRecord::getAssignmentId, assignment.getAssignmentId())
+                    .orderByDesc(InvigilationRecord::getCreateTime)
+                    .list();
+
+            record.put("records", records);
+            history.add(record);
+        }
+
+        log.info("成功获取教师监考历史，教师ID：{}，历史记录数：{}", teacherId, history.size());
+        return history;
+    }
 }

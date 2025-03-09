@@ -1,244 +1,123 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 
 <head>
     <meta charset="UTF-8">
     <title>教师管理 - 考务管理系统</title>
+    <meta name="_csrf" th:content="${_csrf.token}" />
+    <meta name="_csrf_header" th:content="${_csrf.headerName}" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" th:href="@{/css/base.css}">
-    <style>
-        .teachers-container {
-            padding: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .teachers-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .teachers-title {
-            font-size: 24px;
-            color: #333;
-            margin: 0;
-        }
-
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-        }
-
-        .btn i {
-            margin-right: 6px;
-        }
-
-        .btn-primary {
-            background-color: #00b4ff;
-            color: white;
-        }
-
-        .btn-danger {
-            background-color: #dc3545;
-            color: white;
-        }
-
-        .btn:hover {
-            opacity: 0.9;
-        }
-
-        .search-bar {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .search-input {
-            flex: 1;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        .teachers-table {
-            width: 100%;
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            border-collapse: collapse;
-        }
-
-        .teachers-table th,
-        .teachers-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-
-        .teachers-table th {
-            background-color: #f8f9fa;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .teachers-table tr:hover {
-            background-color: #f8f9fa;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 8px;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
-        }
-
-        .modal-content {
-            position: relative;
-            background-color: #fff;
-            margin: 100px auto;
-            padding: 20px;
-            width: 90%;
-            max-width: 500px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .modal-title {
-            font-size: 20px;
-            color: #333;
-            margin: 0;
-        }
-
-        .close-button {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #666;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            color: #666;
-            font-weight: 500;
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        .modal-footer {
-            margin-top: 20px;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-
-        .status-badge {
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .status-active {
-            background-color: #e8f5e9;
-            color: #2e7d32;
-        }
-
-        .status-inactive {
-            background-color: #ffebee;
-            color: #c62828;
-        }
-    </style>
+    <link rel="stylesheet" th:href="@{/css/nav.css}">
+    <link rel="stylesheet" th:href="@{/css/teachers.css}">
 </head>
 
 <body>
-    <div class="teachers-container">
+    <div class="background"></div>
+    <div class="stars"></div>
+
+    <!-- 引入导航栏 -->
+    <div th:replace="~{fragments/nav :: nav}"></div>
+
+    <div class="main-content">
         <div class="teachers-header">
             <h1 class="teachers-title">教师管理</h1>
-            <button class="btn btn-primary" onclick="showAddTeacherModal()">
-                <i class="fas fa-plus"></i> 添加教师
-            </button>
+
+            <!-- 添加 header-controls 容器 -->
+            <div class="header-controls">
+                <button class="btn btn-primary" id="addTeacherBtn">
+                    <i class="fas fa-plus"></i> 添加教师
+                </button>
+                <div class="search-bar">
+                    <input type="text" class="search-input" id="searchInput" placeholder="搜索教师...">
+                </div>
+            </div>
+
+            <!-- 批量操作按钮组 -->
+            <div class="batch-actions">
+                <button class="btn btn-warning" id="batchEnableBtn">批量启用</button>
+                <button class="btn btn-secondary" id="batchDisableBtn">批量停用</button>
+                <button class="btn btn-danger" id="batchDeleteBtn">批量删除</button>
+            </div>
+
+            <!-- 分页信息容器 -->
+            <div class="pagination-container">
+                <div class="pagination-info">
+                    显示第 <span id="startRecord">0</span> 至 <span id="endRecord">0</span> 条记录，
+                    共 <span id="totalItems">0</span> 条记录
+                </div>
+                <div class="pagination-controls">
+                    <select id="pageSize" class="page-size-select">
+                        <option value="10">10条/页</option>
+                        <option value="20">20条/页</option>
+                        <option value="50">50条/页</option>
+                        <option value="100">100条/页</option>
+                    </select>
+                    <button class="btn btn-pagination" id="firstPageBtn">
+                        <i class="fas fa-angle-double-left"></i>
+                    </button>
+                    <button class="btn btn-pagination" id="prevPageBtn">
+                        <i class="fas fa-angle-left"></i>
+                    </button>
+                    <span class="page-info">第 <span id="currentPage">1</span> / <span id="totalPages">1</span> 页</span>
+                    <button class="btn btn-pagination" id="nextPageBtn">
+                        <i class="fas fa-angle-right"></i>
+                    </button>
+                    <button class="btn btn-pagination" id="lastPageBtn">
+                        <i class="fas fa-angle-double-right"></i>
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <div class="search-bar">
-            <input type="text" class="search-input" id="searchInput" placeholder="搜索教师..." oninput="filterTeachers()">
+        <div class="table-container">
+            <table class="teachers-table">
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll"></th>
+                        <th>ID</th>
+                        <th>姓名</th>
+                        <th>部门</th>
+                        <th>职称</th>
+                        <th>邮箱</th>
+                        <th>手机</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="teachersTableBody">
+                    <tr th:each="teacher : ${teachers}">
+                        <td><input type="checkbox" class="teacher-checkbox" value="${teacher.teacherId}"></td>
+                        <td th:text="${teacher.teacherId}"></td>
+                        <td th:text="${teacher.name}"></td>
+                        <td th:text="${teacher.department}"></td>
+                        <td th:text="${teacher.title}"></td>
+                        <td th:text="${teacher.email}"></td>
+                        <td th:text="${teacher.phone}"></td>
+                        <td>
+                            <span
+                                th:class="'status-badge ' + (${teacher.status.name() == 'ACTIVE'} ? 'status-active' : 'status-inactive')"
+                                th:text="${teacher.status.name() == 'ACTIVE'} ? '在职' : (${teacher.status.name() == 'INACTIVE'} ? '未激活' : '已停用')">
+                            </span>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn btn-primary edit-btn" th:attr="data-teacher-id=${teacher.teacherId}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-danger delete-btn" data-teacher-id="${teacher.teacherId}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <!-- 错误信息容器 -->
+            <div class="error-message-container">
+                <div class="error-message" id="errorMessage"></div>
+            </div>
         </div>
-
-        <table class="teachers-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>姓名</th>
-                    <th>部门</th>
-                    <th>职称</th>
-                    <th>邮箱</th>
-                    <th>手机</th>
-                    <th>状态</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody id="teachersTableBody">
-                <tr th:each="teacher : ${teachers}">
-                    <td th:text="${teacher.teacherId}"></td>
-                    <td th:text="${teacher.name}"></td>
-                    <td th:text="${teacher.department}"></td>
-                    <td th:text="${teacher.title}"></td>
-                    <td th:text="${teacher.email}"></td>
-                    <td th:text="${teacher.phone}"></td>
-                    <td>
-                        <span
-                            th:class="'status-badge ' + (${teacher.status == 'ACTIVE'} ? 'status-active' : 'status-inactive')"
-                            th:text="${teacher.status == 'ACTIVE'} ? '在职' : '离职'"></span>
-                    </td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="btn btn-primary" th:onclick="'editTeacher(' + ${teacher.teacherId} + ')'">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn btn-danger" th:onclick="'deleteTeacher(' + ${teacher.teacherId} + ')'">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
     </div>
 
     <!-- 添加/编辑教师模态框 -->
@@ -246,37 +125,50 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="modal-title" id="modalTitle">添加教师</h2>
-                <button class="close-button" onclick="closeModal()">&times;</button>
+                <button class="close-button close-modal-btn">&times;</button>
             </div>
-            <form id="teacherForm" onsubmit="saveTeacher(event)">
-                <input type="hidden" id="teacherId">
+            <form id="teacherForm">
+                <input type="hidden" id="teacherId" name="teacherId">
                 <div class="form-group">
                     <label for="name">姓名</label>
-                    <input type="text" class="form-control" id="name" required>
+                    <input type="text" class="form-control" id="name" name="name" required minlength="2" maxlength="50">
                 </div>
                 <div class="form-group">
                     <label for="department">部门</label>
-                    <input type="text" class="form-control" id="department" required>
+                    <input type="text" class="form-control" id="department" name="department" required>
                 </div>
                 <div class="form-group">
                     <label for="title">职称</label>
-                    <input type="text" class="form-control" id="title" required>
+                    <input type="text" class="form-control" id="title" name="title" required>
                 </div>
                 <div class="form-group">
                     <label for="email">邮箱</label>
-                    <input type="email" class="form-control" id="email" required>
+                    <input type="email" class="form-control" id="email" name="email" required>
                 </div>
                 <div class="form-group">
                     <label for="phone">手机</label>
-                    <input type="tel" class="form-control" id="phone" required>
+                    <input type="tel" class="form-control" id="phone" name="phone" required>
                 </div>
+
                 <div class="form-group">
                     <label for="status">状态</label>
-                    <select class="form-control" id="status" required>
+                    <select class="form-control" id="status" name="status" required>
                         <option value="ACTIVE">在职</option>
-                        <option value="INACTIVE">离职</option>
+                        <option value="INACTIVE">未激活</option>
+                        <option value="DISABLED">已停用</option>
                     </select>
                 </div>
+
+                <div class="form-group">
+                    <label>角色</label>
+                    <div class="role-checkbox-group">
+                        <label><input type="radio" name="roles" value="ADMIN"> 系统管理员</label>
+                        <label><input type="radio" name="roles" value="EXAM_ADMIN"> 考务管理员</label>
+                        <label><input type="radio" name="roles" value="TEACHER"> 监考教师</label>
+                    </div>
+                </div>
+
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                 <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeModal()">取消</button>
                     <button type="submit" class="btn btn-primary">保存</button>
@@ -285,122 +177,7 @@
         </div>
     </div>
 
-    <script>
-        function showAddTeacherModal() {
-            document.getElementById('modalTitle').textContent = '添加教师';
-            document.getElementById('teacherForm').reset();
-            document.getElementById('teacherId').value = '';
-            document.getElementById('teacherModal').style.display = 'block';
-        }
-
-        function editTeacher(teacherId) {
-            document.getElementById('modalTitle').textContent = '编辑教师';
-
-            // 获取教师信息
-            fetch(`/api/admin/teachers/${teacherId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.code === 200) {
-                        const teacher = data.data;
-                        document.getElementById('teacherId').value = teacher.teacherId;
-                        document.getElementById('name').value = teacher.name;
-                        document.getElementById('department').value = teacher.department;
-                        document.getElementById('title').value = teacher.title;
-                        document.getElementById('email').value = teacher.email;
-                        document.getElementById('phone').value = teacher.phone;
-                        document.getElementById('status').value = teacher.status;
-                        document.getElementById('teacherModal').style.display = 'block';
-                    } else {
-                        alert(data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('获取教师信息失败：', error);
-                    alert('获取教师信息失败');
-                });
-        }
-
-        function deleteTeacher(teacherId) {
-            if (!confirm('确定要删除这位教师吗？')) {
-                return;
-            }
-
-            fetch(`/api/admin/teachers/${teacherId}`, {
-                method: 'DELETE'
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.code === 200) {
-                        location.reload();
-                    } else {
-                        alert(data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('删除教师失败：', error);
-                    alert('删除教师失败');
-                });
-        }
-
-        function saveTeacher(event) {
-            event.preventDefault();
-
-            const teacherId = document.getElementById('teacherId').value;
-            const teacher = {
-                name: document.getElementById('name').value,
-                department: document.getElementById('department').value,
-                title: document.getElementById('title').value,
-                email: document.getElementById('email').value,
-                phone: document.getElementById('phone').value,
-                status: document.getElementById('status').value
-            };
-
-            const url = teacherId ? `/api/admin/teachers/${teacherId}` : '/api/admin/teachers';
-            const method = teacherId ? 'PUT' : 'POST';
-
-            fetch(url, {
-                method: method,
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(teacher)
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.code === 200) {
-                        location.reload();
-                    } else {
-                        alert(data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('保存教师失败：', error);
-                    alert('保存教师失败');
-                });
-        }
-
-        function closeModal() {
-            document.getElementById('teacherModal').style.display = 'none';
-        }
-
-        function filterTeachers() {
-            const searchText = document.getElementById('searchInput').value.toLowerCase();
-            const rows = document.getElementById('teachersTableBody').getElementsByTagName('tr');
-
-            Array.from(rows).forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchText) ? '' : 'none';
-            });
-        }
-
-        // 点击模态框外部关闭
-        window.onclick = function (event) {
-            const modal = document.getElementById('teacherModal');
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        }
-    </script>
+    <script th:src="@{/js/teachers.js}"></script>
 </body>
 
 </html>

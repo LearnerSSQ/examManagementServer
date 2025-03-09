@@ -12,6 +12,7 @@ public enum ErrorCode {
     FORBIDDEN(403, "禁止访问"),
     NOT_FOUND(404, "资源不存在"),
     OPERATION_NOT_ALLOWED(403, "操作不允许"),
+    OPERATION_FAILED(500, "操作失败"),
 
     // 用户相关错误码 (1000-1999)
     USER_NOT_FOUND(1001, "用户不存在"),
@@ -43,6 +44,10 @@ public enum ErrorCode {
     EVALUATION_NOT_FOUND(5000, "评价不存在"),
     EVALUATION_ALREADY_EXISTS(5001, "评价已存在"),
     INVALID_SCORE(5002, "无效的评分"),
+
+    // 文件相关错误码 (6000-6999)
+    FILE_NOT_FOUND(6000, "文件不存在"),
+    FILE_PREVIEW_ERROR(6001, "文件预览失败"),
 
     // 监考相关错误码
     ASSIGNMENT_NOT_FOUND_CODE(4001, "监考安排不存在"),

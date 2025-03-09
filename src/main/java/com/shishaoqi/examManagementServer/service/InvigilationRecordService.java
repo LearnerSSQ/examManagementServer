@@ -195,4 +195,12 @@ public interface InvigilationRecordService extends IService<InvigilationRecord> 
          * 获取监考统计信息
          */
         Map<String, Object> getInvigilationStatistics(LocalDateTime startTime, LocalDateTime endTime);
+
+        /**
+         * 获取教师监考历史记录
+         * 
+         * @param teacherId 教师ID
+         * @return 监考记录列表
+         */
+        List<Map<String, Object>> getTeacherInvigilationHistory(Integer teacherId);
 }

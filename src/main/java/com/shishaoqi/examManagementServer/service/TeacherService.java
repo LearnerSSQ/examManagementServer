@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.shishaoqi.examManagementServer.entity.teacher.Teacher;
 import com.shishaoqi.examManagementServer.entity.teacher.TeacherRole;
 import com.shishaoqi.examManagementServer.entity.teacher.TeacherStatus;
+import com.shishaoqi.examManagementServer.common.PageResult;
 
 import java.util.List;
 import java.util.Map;
@@ -265,4 +266,17 @@ public interface TeacherService extends IService<Teacher> {
      * @return 是否删除成功
      */
     boolean deleteTeacher(Integer teacherId);
+
+    boolean batchDeleteTeachers(List<Integer> teacherIds);
+
+    boolean batchUpdateStatus(List<Integer> teacherIds, String status);
+
+    /**
+     * 获取教师分页列表
+     * 
+     * @param page 页码(从0开始)
+     * @param size 每页大小
+     * @return 分页结果
+     */
+    PageResult<Teacher> getTeachersByPage(int page, int size);
 }

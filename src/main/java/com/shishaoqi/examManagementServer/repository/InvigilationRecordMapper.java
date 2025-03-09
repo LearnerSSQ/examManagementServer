@@ -87,11 +87,16 @@ public interface InvigilationRecordMapper extends BaseMapper<InvigilationRecord>
                         "</script>")
         int batchInsertRecords(@Param("records") List<InvigilationRecord> records);
 
-        @Select("SELECT e.score, e.assignment_id " +
+        /**
+         * 获取教师评价信息
+         */
+        @Select("<script>" +
+                        "SELECT e.score, e.assignment_id " +
                         "FROM evaluation e " +
                         "WHERE e.assignment_id IN " +
-                        "<foreach item='item' collection='assignmentIds' open='(' separator=',' close=')'>" +
-                        "#{item}" +
-                        "</foreach>")
+                        "<foreach collection='list' item='id' separator=',' open='(' close=')'>" +
+                        "#{id}" +
+                        "</foreach>" +
+                        "</script>")
         List<Map<String, Object>> getTeacherEvaluations(List<Long> assignmentIds);
 }

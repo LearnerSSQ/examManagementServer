@@ -1,5 +1,7 @@
 HELP.md
 .gradle
+.cursorrules
+.clinerules
 build/
 logs/
 !gradle/wrapper/gradle-wrapper.jar

@@ -15,7 +15,7 @@
     <div class="stars"></div>
 
     <!-- 引入导航栏 -->
-    <div th:replace="fragments/nav :: nav"></div>
+    <div th:replace="~{fragments/nav :: nav}"></div>
 
     <div class="main-content">
         <div class="profile-container" th:if="${teacher != null}">
@@ -90,14 +90,14 @@
                             暂无监考记录
                         </div>
                         <div th:each="record : ${invigilationHistory}" class="timeline-item">
-                            <div class="timeline-date" th:text="${#temporals.format(record.examStart, 'yyyy-MM-dd')}">
+                            <div class="timeline-date" th:text="${#temporals.format(record.examTime, 'yyyy-MM-dd')}">
                                 2024-01-01</div>
                             <div class="timeline-content">
                                 <div class="timeline-title" th:text="${record.courseName}">课程名称</div>
                                 <div class="timeline-details">
                                     <span th:text="${record.location}">考场</span>
-                                    <span th:if="${record.getScore() != null}"
-                                        th:text="'评分: ' + ${record.getScore()}">评分</span>
+                                    <span th:if="${record['evaluation'] != null and record['evaluation'].score != null}"
+                                        th:text="'评分: ' + ${#numbers.formatDecimal(record['evaluation'].score, 1, 1)}">评分</span>
                                 </div>
                             </div>
                         </div>

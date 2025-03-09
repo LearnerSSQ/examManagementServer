@@ -108,28 +108,24 @@ public class MyTrainingController {
             return "error";
         }
     }
-
+    @PutMapping("/progress/{recordId}")
     @Operation(summary = "更新培训进度", description = "更新指定培训的学习进度")
     @ApiResponse(responseCode = "200", description = "成功更新培训进度")
-    @PostMapping("/progress/{recordId}")
-    @ResponseBody
     public Result<Void> updateProgress(
             @AuthenticationPrincipal TeacherUserDetails userDetails,
-            @Parameter(description = "培训记录ID", required = true) @PathVariable Long recordId,
-            @Parameter(description = "学习进度(0-100)", required = true) @RequestParam Integer progress) {
+            @PathVariable Long recordId,
+            @RequestParam Integer progress) {
         try {
-            if (userDetails == null) {
-                throw new BusinessException(ErrorCode.UNAUTHORIZED, "请先登录");
-            }
-
             if (progress < 0 || progress > 100) {
-                throw new BusinessException(ErrorCode.PARAM_ERROR, "进度值必须在0-100之间");
+                return Result.error(ErrorCode.PARAM_ERROR, "进度值必须在0-100之间");
             }
-
             Integer teacherId = userDetails.getTeacher().getTeacherId();
-            trainingService.updateProgress(recordId, teacherId, progress);
-            return Result.success(null);
+            if (trainingService.updateProgress(recordId, teacherId, progress)) {
+                return Result.success(null);
+            }
+            return Result.error(ErrorCode.PARAM_ERROR, "更新进度失败");
         } catch (BusinessException e) {
+            log.error("更新培训进度时发生业务异常：{}", e.getMessage());
             return Result.error(e.getCode(), e.getMessage());
         } catch (Exception e) {
             log.error("更新培训进度时发生系统异常", e);

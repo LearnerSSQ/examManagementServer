@@ -33,9 +33,11 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ----------------------------
 -- 5. 初始化管理员账号
 -- ----------------------------
-INSERT INTO teacher (name, password, email, role, status) VALUES
-('系统管理员', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', 'admin@example.com', 'ADMIN', 'ACTIVE'),
-('考务管理员', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', 'exam_admin@example.com', 'EXAM_ADMIN', 'ACTIVE');
+START TRANSACTION;
+
+INSERT INTO teacher (name, password, email, role, status, create_time) VALUES
+('系统管理员', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', 'admin@example.com', 'ADMIN', 'ACTIVE', '2023-01-01 00:00:00'),
+('考务管理员', '$2a$10$wmISVE3hfRHjmbJKVoNiWOf7LzjadJVy2SQpwADu9JVwrpfHHUwOu', 'exam_admin@example.com', 'EXAM_ADMIN', 'ACTIVE', '2023-01-01 00:00:00');
 -- 注：密码为BCrypt加密后的'123456'
 
 -- ----------------------------
@@ -56,17 +58,17 @@ INSERT INTO teacher (name, password, phone, email, department, title, status, la
 -- 注：密码为BCrypt加密后的'123456'
 
 -- 培训材料表（10条）
-INSERT INTO training_material (title, description, content, type, status, creator_id, duration, is_required, tags) VALUES
-('监考规范手册', '监考流程与注意事项', '详细监考规范内容...', 'DOCUMENT', 'PUBLISHED', 1, 30, TRUE, '["监考规范", "必修"]'),
-('考场应急处理视频', '突发事件处理方法', '<视频链接>', 'VIDEO', 'PUBLISHED', 1, 20, TRUE, '["应急处理", "必修"]'),
-('监考资格考试', '在线测试题库', '{"questions": [{"id": 1, "title": "题目1", "options": ["A", "B", "C"]}]}', 'QUIZ', 'PUBLISHED', 1, 15, TRUE, '["考试", "必修"]'),
-('诚信监考培训', '学术诚信重要性', '文字材料...', 'DOCUMENT', 'PUBLISHED', 2, 25, TRUE, '["诚信", "必修"]'),
-('监考设备操作指南', '考场设备使用说明', '操作步骤图文...', 'DOCUMENT', 'PUBLISHED', 2, 40, TRUE, '["设备", "必修"]'),
-('监考心理调节课程', '压力管理技巧', '<视频链接>', 'VIDEO', 'PUBLISHED', 1, 30, FALSE, '["心理", "选修"]'),
-('监考模拟测试', '模拟监考场景测试', '{"questions": [{"id": 1, "title": "场景1", "options": ["A", "B"]}]}', 'QUIZ', 'PUBLISHED', 2, 20, TRUE, '["模拟", "必修"]'),
-('监考法律法规', '监考相关法律条文', '法律文件全文...', 'DOCUMENT', 'PUBLISHED', 1, 35, TRUE, '["法规", "必修"]'),
-('监考沟通技巧', '与考生沟通方法', '<视频链接>', 'VIDEO', 'PUBLISHED', 2, 25, FALSE, '["沟通", "选修"]'),
-('监考总结报告', '监考总结模板', '报告范文...', 'DOCUMENT', 'PUBLISHED', 1, 20, FALSE, '["总结", "选修"]');
+INSERT INTO training_material (title, description, content, type, status, creator_id, duration, is_required, tags, pass_score, expire_date) VALUES
+('监考规范手册', '监考流程与注意事项', 'src/main/resources/static/training-materials/2023/01/01/1/1/files/document.pdf', 'DOCUMENT', 'PUBLISHED', 1, 30, TRUE, '监考规范,必修', NULL, NULL),
+('考场应急处理视频', '突发事件处理方法', 'src/main/resources/static/training-materials/2023/01/01/1/2/files/video.mp4', 'VIDEO', 'PUBLISHED', 1, 20, TRUE, '应急处理,必修', NULL, NULL),
+('监考资格考试', '在线测试题库', 'src/main/resources/static/training-materials/2023/01/01/1/3/files/quiz.json', 'QUIZ', 'PUBLISHED', 1, 15, TRUE, '考试,必修', 80, '2025-12-31'),
+('诚信监考培训', '学术诚信重要性', 'src/main/resources/static/training-materials/2023/01/01/2/4/files/document.pdf', 'DOCUMENT', 'PUBLISHED', 2, 25, TRUE, '诚信,必修', NULL, NULL),
+('监考设备操作指南', '考场设备使用说明', 'src/main/resources/static/training-materials/2023/01/01/2/5/files/document.pdf', 'DOCUMENT', 'PUBLISHED', 2, 40, TRUE, '设备,必修', NULL, NULL),
+('监考心理调节课程', '压力管理技巧', 'src/main/resources/static/training-materials/2023/01/01/1/6/files/video.mp4', 'VIDEO', 'PUBLISHED', 1, 30, FALSE, '心理,选修', NULL, NULL),
+('监考模拟测试', '模拟监考场景测试', 'src/main/resources/static/training-materials/2023/01/01/2/7/files/quiz.json', 'QUIZ', 'PUBLISHED', 2, 20, TRUE, '模拟,必修', NULL, NULL),
+('监考法律法规', '监考相关法律条文', 'src/main/resources/static/training-materials/2023/01/01/1/8/files/document.pdf', 'DOCUMENT', 'PUBLISHED', 1, 35, TRUE, '法规,必修', NULL, NULL),
+('监考沟通技巧', '与考生沟通方法', 'src/main/resources/static/training-materials/2023/01/01/2/9/files/video.mp4', 'VIDEO', 'PUBLISHED', 2, 25, FALSE, '沟通,选修', NULL, NULL),
+('监考总结报告', '监考总结模板', 'src/main/resources/static/training-materials/2023/01/01/1/10/files/document.pdf', 'DOCUMENT', 'PUBLISHED', 1, 20, FALSE, '总结,选修', NULL, NULL);
 
 -- 监考安排表（10条）
 INSERT INTO invigilator_assignment (teacher_id, course_name, exam_start, exam_end, location, role, status, confirm_time) VALUES
@@ -132,3 +134,8 @@ INSERT INTO evaluation (assignment_id, evaluator_id, score, comment, create_time
 (7, 10, 87.0, '监考态度友好', '2023-11-08 12:45:00'),
 (9, 3, 78.5, '考试延后未提前通知', '2023-11-09 17:30:00'),
 (10, 4, 93.0, '签到流程高效', '2023-11-07 11:50:00');
+
+-- ----------------------------
+-- 7. 提交数据
+-- ----------------------------
+COMMIT

@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.annotation.IEnum;
  */
 public enum TrainingMaterialStatus implements IEnum<String> {
     DRAFT("DRAFT", "草稿"),
+    PENDING("PENDING", "待审核"),
     PUBLISHED("PUBLISHED", "已发布"),
     ARCHIVED("ARCHIVED", "已归档"),
     DELETED("DELETED", "已删除");

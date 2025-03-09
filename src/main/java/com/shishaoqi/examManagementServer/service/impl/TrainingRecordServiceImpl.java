@@ -1,5 +1,8 @@
 package com.shishaoqi.examManagementServer.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import org.apache.commons.lang3.StringUtils;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.shishaoqi.examManagementServer.entity.training.TrainingMaterial;
@@ -19,10 +22,22 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 @Service
 public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper, TrainingRecord>
         implements TrainingRecordService {
+
+    @Override
+    public Page<TrainingRecord> search(String keyword, Page<TrainingRecord> page) {
+        QueryWrapper<TrainingRecord> queryWrapper = new QueryWrapper<>();
+        if (StringUtils.isNotBlank(keyword)) {
+            queryWrapper.like("title", keyword)
+                        .or()
+                        .like("description", keyword);
+        }
+        return baseMapper.selectPage(page, queryWrapper);
+    }
 
     private static final Logger log = LoggerFactory.getLogger(TrainingRecordServiceImpl.class);
 
@@ -656,5 +671,124 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         stats.put("completionRate", completionRate);
 
         return stats;
+    }
+
+    @Override
+    public List<TrainingRecord> getTeacherTrainingRecords(Integer teacherId) {
+        if (teacherId == null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        return lambdaQuery()
+                .eq(TrainingRecord::getTeacherId, teacherId)
+                .orderByDesc(TrainingRecord::getStartTime)
+                .list();
+    }
+
+    @Override
+    public Page<TrainingRecord> getPage(int page, int size) {
+        if (page < 1 || size < 1) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "页码和每页大小必须大于0");
+        }
+
+        Page<TrainingRecord> pageParam = new Page<>(page, size);
+        Page<TrainingRecord> result = lambdaQuery()
+                .orderByDesc(TrainingRecord::getStartTime)
+                .page(pageParam);
+
+        log.info("分页查询结果 - 当前页: {}, 每页大小: {}, 总记录数: {}, 总页数: {}",
+                result.getCurrent(),
+                result.getSize(),
+                result.getTotal(),
+                result.getPages());
+
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> getTrainingMaterialTags(Long materialId) {
+        Map<String, Object> tagInfo = new HashMap<>();
+
+        TrainingMaterial material = trainingMaterialService.getById(materialId);
+        if (material == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+
+        // 获取材料的标签
+        String[] tags = material.getTags() != null ? material.getTags().split(",") : new String[0];
+
+        // 获取使用该标签的培训记录数量
+        Map<String, Long> tagUsage = new HashMap<>();
+        for (String tag : tags) {
+            long count = lambdaQuery()
+                    .eq(TrainingRecord::getMaterialId, materialId)
+                    .count();
+            tagUsage.put(tag.trim(), count);
+        }
+
+        // 获取相关的培训材料
+        List<Long> relatedMaterialIds = trainingMaterialService.list(new LambdaQueryWrapper<TrainingMaterial>()
+                .like(TrainingMaterial::getTags, String.join(",", tags))
+                .ne(TrainingMaterial::getMaterialId, materialId)
+                .last("LIMIT 5"))
+                .stream()
+                .map(TrainingMaterial::getMaterialId)
+                .collect(Collectors.toList());
+
+        tagInfo.put("tags", tags);
+        tagInfo.put("tagUsage", tagUsage);
+        tagInfo.put("relatedMaterials", relatedMaterialIds);
+
+        return tagInfo;
+    }
+
+    @Override
+    public Map<String, Object> previewTrainingMaterial(Long materialId) {
+        Map<String, Object> preview = new HashMap<>();
+
+        TrainingMaterial material = trainingMaterialService.getById(materialId);
+        if (material == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+
+        // 获取材料基本信息
+        preview.put("title", material.getTitle());
+        preview.put("content", material.getContent());
+        preview.put("duration", material.getDuration());
+        preview.put("tags", material.getTags());
+
+        // 获取学习统计信息
+        long totalLearners = lambdaQuery()
+                .eq(TrainingRecord::getMaterialId, materialId)
+                .groupBy(TrainingRecord::getTeacherId)
+                .count();
+
+        long completedLearners = lambdaQuery()
+                .eq(TrainingRecord::getMaterialId, materialId)
+                .eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED)
+                .groupBy(TrainingRecord::getTeacherId)
+                .count();
+
+        // 计算平均完成时间
+        List<TrainingRecord> completedRecords = lambdaQuery()
+                .eq(TrainingRecord::getMaterialId, materialId)
+                .eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED)
+                .list();
+
+        double avgCompletionTime = completedRecords.stream()
+                .mapToLong(r -> {
+                    if (r.getStartTime() != null && r.getCompleteTime() != null) {
+                        return java.time.Duration.between(r.getStartTime(), r.getCompleteTime()).toMinutes();
+                    }
+                    return 0L;
+                })
+                .average()
+                .orElse(0.0);
+
+        preview.put("totalLearners", totalLearners);
+        preview.put("completedLearners", completedLearners);
+        preview.put("completionRate", totalLearners > 0 ? (double) completedLearners / totalLearners : 0);
+        preview.put("averageCompletionTime", avgCompletionTime);
+
+        return preview;
     }
 }

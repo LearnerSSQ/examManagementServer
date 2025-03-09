@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+
+<head>
+    <meta charset="UTF-8">
+    <title>培训管理</title>
+    <meta name="_csrf" th:content="${_csrf.token}" />
+    <meta name="_csrf_header" th:content="${_csrf.headerName}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <!-- Select2 CSS 和 JS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+    <link th:href="@{/css/base.css}" rel="stylesheet">
+    <link th:href="@{/css/nav.css}" rel="stylesheet">
+    <link th:href="@{/css/training.css}" rel="stylesheet">
+</head>
+
+<body>
+    <div class="background"></div>
+    <div class="stars"></div>
+
+    <!-- 引入导航栏 -->
+    <div th:replace="~{fragments/nav :: nav}"></div>
+
+    <div class="main-content">
+        <div class="page-header">
+            <h1 class="gradient-text">培训管理</h1>
+            <div class="header-actions">
+                <button id="uploadMaterialBtn" class="btn btn-primary">
+                    <i class="fas fa-upload"></i> 上传培训材料
+                </button>
+                <button id="assignTrainingBtn" class="btn btn-success">
+                    <i class="fas fa-user-plus"></i> 分配培训
+                </button>
+                <div class="filter-bar">
+                    <select class="filter-select" id="statusFilter">
+                        <option value="">全部状态</option>
+                        <option value="PENDING">待审核</option>
+                        <option value="PUBLISHED">已发布</option>
+                        <option value="ARCHIVED">已归档</option>
+                    </select>
+                    <select class="filter-select" id="typeFilter">
+                        <option value="">全部类型</option>
+                        <option value="DOCUMENT">文档</option>
+                        <option value="VIDEO">教学视频</option>
+                        <option value="QUIZ">在线测试</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- 培训材料列表 -->
+        <div class="materials-grid">
+            <div th:each="material : ${materials}" class="material-card">
+                <div class="material-header">
+                    <h3 th:text="${material.title}">培训材料标题</h3>
+                    <span th:class="|status-badge ${material.status.value.toLowerCase()}|"
+                        th:text="${material.status.description}">状态</span>
+                </div>
+                <div class="material-body">
+                    <p th:text="${material.description}">描述</p>
+                    <div class="material-meta">
+                        <span><i class="fas fa-clock"></i> <span th:text="${material.duration}">时长</span>分钟</span>
+                        <span><i class="fas fa-tags"></i> <span th:text="${material.tags}">标签</span></span>
+                    </div>
+                </div>
+                <div class="material-actions">
+                    <button class="btn btn-icon" th:onclick="|previewMaterial(${material.materialId})|">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-icon" th:if="${material.status.value == 'PENDING'}"
+                        th:onclick="|reviewMaterial(${material.materialId})|">
+                        <i class="fas fa-check-circle"></i>
+                    </button>
+                    <button class="btn btn-icon" th:onclick="|editMaterial(${material.materialId})|">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-icon" th:onclick="|deleteMaterial(${material.materialId})|">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 分页控件 -->
+        <div class="pagination" th:if="${totalPages > 1}">
+            <a th:href="@{/admin/training(currentPage=${currentPage - 1}, pageSize=${pageSize})}"
+                th:class="${currentPage == 1 ? 'disabled' : ''}">上一页</a>
+            <span th:text="|第 ${currentPage} 页，共 ${totalPages} 页|"></span>
+            <a th:href="@{/admin/training(currentPage=${currentPage + 1}, pageSize=${pageSize})}"
+                th:class="${currentPage == totalPages ? 'disabled' : ''}">下一页</a>
+        </div>
+    </div>
+
+    <!-- 上传模态框 -->
+    <div id="uploadModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>上传培训材料</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <label for="title">标题</label>
+                        <input type="text" id="title" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="description">描述</label>
+                        <textarea id="description" name="description" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="type">类型</label>
+                        <select id="type" name="type" required>
+                            <option value="DOCUMENT">文档</option>
+                            <option value="VIDEO">视频</option>
+                            <option value="QUIZ">测验</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="file">文件</label>
+                        <input type="file" id="file" name="file" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="duration">时长（分钟）</label>
+                        <input type="number" id="duration" name="duration" min="1">
+                    </div>
+                    <div class="form-group" id="passScoreGroup" style="display: none;">
+                        <label for="passScore">通过分数</label>
+                        <input type="number" id="passScore" name="passScore" min="0" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="tags">标签</label>
+                        <input type="text" id="tags" name="tags" placeholder="输入标签，按回车或逗号分隔">
+                        <div id="tagsContainer" class="tags-container"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="isRequired" name="isRequired">
+                            <span>必修课程</span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="cancelUpload" class="btn btn-secondary">取消</button>
+                <button type="button" id="submitUpload" class="btn btn-primary">上传</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 审核模态框 -->
+    <div id="reviewModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>审核培训材料</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="reviewForm">
+                    <div class="form-group">
+                        <label>审核结果</label>
+                        <div class="radio-group">
+                            <label class="radio-label">
+                                <input type="radio" name="status" value="PUBLISHED" checked>
+                                <span>通过</span>
+                            </label>
+                            <label class="radio-label">
+                                <input type="radio" name="status" value="PENDING">
+                                <span>拒绝</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="reviewComment">审核意见</label>
+                        <textarea id="reviewComment" name="reviewComment"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="cancelReview" class="btn btn-secondary">取消</button>
+                <button type="button" id="submitReview" class="btn btn-primary">提交</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑模态框 -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>编辑培训材料</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <div class="form-group">
+                        <label for="editTitle">标题</label>
+                        <input type="text" id="editTitle" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editDescription">描述</label>
+                        <textarea id="editDescription" name="description" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editType">类型</label>
+                        <select id="editType" name="type" required>
+                            <option value="DOCUMENT">文档</option>
+                            <option value="VIDEO">视频</option>
+                            <option value="QUIZ">测验</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editDuration">时长（分钟）</label>
+                        <input type="number" id="editDuration" name="duration" min="1">
+                    </div>
+                    <div class="form-group" id="editPassScoreGroup">
+                        <label for="editPassScore">通过分数</label>
+                        <input type="number" id="editPassScore" name="passScore" min="0" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="editTags">标签</label>
+                        <input type="text" id="editTags" name="tags" placeholder="输入标签，按回车或逗号分隔">
+                        <div id="editTagsContainer" class="tags-container"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="editIsRequired" name="isRequired">
+                            <span>必修课程</span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="cancelEdit" class="btn btn-secondary">取消</button>
+                <button type="button" id="submitEdit" class="btn btn-primary">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/tags-manager.js}"></script>
+    <script th:src="@{/js/training.js}"></script>
+    <!-- 分配培训模态框 -->
+    <div id="assignModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>分配培训</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- 培训材料选择 -->
+                <div class="form-group">
+                    <label for="materialSelect">培训材料：</label>
+                    <select id="materialSelect" class="form-control">
+                        <option value="">-- 请选择培训材料 --</option>
+                    </select>
+                </div>
+
+                <div id="materialInfo" style="display: none; margin-top: 1rem;">
+                    <h5 id="materialTitle"></h5>
+                    <p id="materialDescription"></p>
+                    <div style="display: flex; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <p><strong>类型：</strong> <span id="materialType"></span></p>
+                            <p><strong>时长：</strong> <span id="materialDuration"></span> 分钟</p>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <p><strong>是否必修：</strong> <span id="materialRequired"></span></p>
+                            <p><strong>通过分数：</strong> <span id="materialPassScore"></span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 教师选择 -->
+
+                <div class="form-group">
+                    <label for="teacherSelect">选择教师：</label>
+                    <select id="teacherSelect" class="form-control" multiple="multiple">
+                    </select>
+                    <small style="color: #999;">可以按住Ctrl键多选或使用搜索功能</small>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; margin-top: 1rem;">
+                    <button id="selectAllBtn" class="btn btn-outline-primary">全选</button>
+                    <button id="clearSelectionBtn" class="btn btn-outline-secondary">清除选择</button>
+                </div>
+
+                <!-- 分配结果 -->
+                <div id="assignmentResult" style="margin-top: 1.5rem; display: none;">
+                    <div style="border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; overflow: hidden;">
+                        <div style="padding: 0.75rem; background-color: rgba(23, 162, 184, 0.5); color: white;">
+                            <h5 style="margin: 0;">分配结果</h5>
+                        </div>
+                        <div style="padding: 1rem;">
+                            <div
+                                style="background-color: rgba(40, 167, 69, 0.2); border: 1px solid rgba(40, 167, 69, 0.3); color: #75b798; padding: 0.75rem; border-radius: 4px; margin-bottom: 0.5rem;">
+                                成功分配: <span id="successCount">0</span> 人
+                            </div>
+                            <div
+                                style="background-color: rgba(220, 53, 69, 0.2); border: 1px solid rgba(220, 53, 69, 0.3); color: #ea868f; padding: 0.75rem; border-radius: 4px;">
+                                失败: <span id="failCount">0</span> 人
+                            </div>
+                            <div id="failedTeachers" style="display: none; margin-top: 1rem;">
+                                <h6>失败教师列表：</h6>
+                                <ul id="failedTeachersList"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="cancelAssign" class="btn btn-secondary">取消</button>
+                <button type="button" id="submitAssign" class="btn btn-success" disabled>
+                    <i class="fas fa-check-circle"></i> 确认分配
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // 点击模态框外部关闭模态框
+    window.addEventListener('click', function(event) {
+        const assignModal = document.getElementById('assignModal');
+        if (event.target === assignModal) {
+            assignModal.style.display = 'none';
+        }
+    });
+    </script>
+</body>
+
+</html>

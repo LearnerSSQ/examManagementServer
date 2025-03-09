@@ -39,7 +39,6 @@ public class SettingsController {
     @Value("${jwt.secret}")
     private String jwtSecret;
 
-    @Value("${jwt.expiration}")
     private String tokenExpiration;
 
     @Value("classpath:application.yml")
