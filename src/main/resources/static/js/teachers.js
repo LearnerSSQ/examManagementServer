@@ -124,6 +124,9 @@ class TeachersManager {
             this.fetchTeachers();
         });
 
+        // 全选功能
+        document.getElementById('selectAll')?.addEventListener('change', () => this.toggleSelectAll());
+
         // 批量操作事件
         document.getElementById('batchEnableBtn')?.addEventListener('click', () => this.batchUpdateStatus('ACTIVE'));
         document.getElementById('batchDisableBtn')?.addEventListener('click', () => this.batchUpdateStatus('DISABLED'));
@@ -450,12 +453,12 @@ class TeachersManager {
         this.showLoading();
         try {
             const response = await fetch('/api/admin/teachers/batch-delete', {
-                method: 'DELETE',
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     [this.csrfHeader]: this.csrfToken
                 },
-                body: JSON.stringify({ ids: selectedIds })
+                body: JSON.stringify(selectedIds)
             });
 
             const data = await response.json();
@@ -513,9 +516,6 @@ class TeachersManager {
         const checkboxes = document.querySelectorAll('.teacher-checkbox');
         const selectAll = document.getElementById('selectAll');
         checkboxes.forEach(checkbox => checkbox.checked = selectAll.checked);
-        selectAll.addEventListener('change', () => {
-            checkboxes.forEach(checkbox => checkbox.checked = selectAll.checked);
-        });
     }
 
     showAddTeacherModal() {
@@ -590,14 +590,9 @@ class TeachersManager {
     // 其他方法实现...
 }
 
-// 初始化
-const teachersManager = new TeachersManager();
-
 // 全局方法绑定
 window.closeModal = () => teachersManager.closeModal();
 window.saveTeacher = (e) => teachersManager.saveTeacher(e);
-window.toggleSelectAll = function () {
-    const checkboxes = document.querySelectorAll('.teacher-checkbox');
-    const selectAll = document.getElementById('selectAll').checked;
-    checkboxes.forEach(checkbox => checkbox.checked = selectAll);
-};
+
+// 初始化教师管理器
+const teachersManager = new TeachersManager();

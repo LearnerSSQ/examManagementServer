@@ -186,6 +186,6 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message> impl
     @Override
     @Transactional
     public void batchMarkAsRead(List<Long> messageIds) {
-        messageMapper.batchUpdateStatus(messageIds, 1, LocalDateTime.now());
+        messageMapper.batchUpdateStatus(messageIds, MessageStatus.READ.getValue(), LocalDateTime.now());
     }
 }

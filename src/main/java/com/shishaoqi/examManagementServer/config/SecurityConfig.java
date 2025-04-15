@@ -61,7 +61,8 @@ public class SecurityConfig {
                                                 .requestMatchers("/", "/login", "/css/**", "/js/**", "/images/**",
                                                                 "/favicon.ico")
                                                 .permitAll()
-                                                .requestMatchers("/api/admin/**", "/system/**").hasRole("ADMIN")
+                                                .requestMatchers("/api/admin/**", "/system/**")
+                                                .hasAnyRole("ADMIN", "EXAM_ADMIN")
                                                 .requestMatchers("/api/teachers/manage/**").hasRole("ADMIN")
                                                 .requestMatchers("/api/exam-admin/**").hasRole("EXAM_ADMIN")
                                                 .requestMatchers("/api/assignments/manage/**").hasRole("EXAM_ADMIN")

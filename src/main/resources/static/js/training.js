@@ -442,7 +442,7 @@ class TrainingManager {
         });
 
         // 选择教师时更新按钮状态
-        document.getElementById('teacherSelect')?.addEventListener('change', () => {
+        $('#teacherSelect').on('select2:select select2:unselect', () => {
             this.updateAssignButtonState();
         });
 
@@ -471,27 +471,27 @@ class TrainingManager {
                 [this.csrfHeader]: this.csrfToken
             }
         })
-        .then(response => response.json())
-        .then(response => {
-            if (response.code === 200 && response.data) {
-                const materials = Array.isArray(response.data) ? response.data : (response.data.content || []);
-                let options = '<option value="">-- 请选择培训材料 --</option>';
+            .then(response => response.json())
+            .then(response => {
+                if (response.code === 200 && response.data) {
+                    const materials = Array.isArray(response.data) ? response.data : (response.data.content || []);
+                    let options = '<option value="">-- 请选择培训材料 --</option>';
 
-                materials.forEach(function (material) {
-                    options += `<option value="${material.materialId}">${material.title}</option>`;
-                });
+                    materials.forEach(function (material) {
+                        options += `<option value="${material.materialId}">${material.title}</option>`;
+                    });
 
-                document.getElementById('materialSelect').innerHTML = options;
-                console.log('培训材料加载成功:', materials.length);
-            } else {
-                console.error('加载培训材料失败:', response);
-                alert('加载培训材料失败：' + (response.message || '未知错误'));
-            }
-        })
-        .catch(error => {
-            console.error('加载培训材料请求失败:', error);
-            alert('加载培训材料失败，请检查网络连接');
-        });
+                    document.getElementById('materialSelect').innerHTML = options;
+                    console.log('培训材料加载成功:', materials.length);
+                } else {
+                    console.error('加载培训材料失败:', response);
+                    alert('加载培训材料失败：' + (response.message || '未知错误'));
+                }
+            })
+            .catch(error => {
+                console.error('加载培训材料请求失败:', error);
+                alert('加载培训材料失败，请检查网络连接');
+            });
     }
 
     // 加载教师列表
@@ -505,41 +505,41 @@ class TrainingManager {
                 [this.csrfHeader]: this.csrfToken
             }
         })
-        .then(response => response.json())
-        .then(response => {
-            if (response.code === 200 && response.data) {
-                const teachers = Array.isArray(response.data) ? response.data : (response.data.content || []);
+            .then(response => response.json())
+            .then(response => {
+                if (response.code === 200 && response.data) {
+                    const teachers = Array.isArray(response.data) ? response.data : (response.data.content || []);
 
-                if (teachers.length > 0) {
-                    teachers.forEach(function (teacher) {
-                        const option = new Option(
-                            `${teacher.name} (${teacher.department || '未知部门'})`,
-                            teacher.teacherId,
-                            false,
-                            false
-                        );
+                    if (teachers.length > 0) {
+                        teachers.forEach(function (teacher) {
+                            const option = new Option(
+                                `${teacher.name} (${teacher.department || '未知部门'})`,
+                                teacher.teacherId,
+                                false,
+                                false
+                            );
+                            teacherSelect.appendChild(option);
+                        });
+                    } else {
+                        const option = new Option('没有可用的教师', '', true, true);
                         teacherSelect.appendChild(option);
-                    });
-                } else {
-                    const option = new Option('没有可用的教师', '', true, true);
-                    teacherSelect.appendChild(option);
-                }
+                    }
 
-                // 如果使用了Select2插件，需要刷新
-                if ($.fn.select2) {
-                    $(teacherSelect).trigger('change');
+                    // 如果使用了Select2插件，需要刷新
+                    if ($.fn.select2) {
+                        $(teacherSelect).trigger('change');
+                    }
+
+                    console.log('教师列表加载成功:', teachers.length);
+                } else {
+                    console.error('加载教师列表失败:', response);
+                    alert('加载教师列表失败：' + (response.message || '未知错误'));
                 }
-                
-                console.log('教师列表加载成功:', teachers.length);
-            } else {
-                console.error('加载教师列表失败:', response);
-                alert('加载教师列表失败：' + (response.message || '未知错误'));
-            }
-        })
-        .catch(error => {
-            console.error('加载教师列表请求失败:', error);
-            alert('加载教师列表失败，请检查网络连接');
-        });
+            })
+            .catch(error => {
+                console.error('加载教师列表请求失败:', error);
+                alert('加载教师列表失败，请检查网络连接');
+            });
     }
 
     // 加载培训材料详情
@@ -550,39 +550,38 @@ class TrainingManager {
                 [this.csrfHeader]: this.csrfToken
             }
         })
-        .then(response => response.json())
-        .then(response => {
-            if (response.code === 200) {
-                const material = response.data.material;
+            .then(response => response.json())
+            .then(response => {
+                if (response.code === 200) {
+                    const material = response.data.material;
 
-                document.getElementById('materialTitle').textContent = material.title;
-                document.getElementById('materialDescription').textContent = material.description;
-                document.getElementById('materialType').textContent = this.formatMaterialType(material.type);
-                document.getElementById('materialDuration').textContent = material.duration || '未设置';
-                document.getElementById('materialRequired').textContent = material.isRequired ? '是' : '否';
-                document.getElementById('materialPassScore').textContent = material.passScore || '无';
+                    document.getElementById('materialTitle').textContent = material.title;
+                    document.getElementById('materialDescription').textContent = material.description;
+                    document.getElementById('materialType').textContent = this.formatMaterialType(material.type);
+                    document.getElementById('materialDuration').textContent = material.duration || '未设置';
+                    document.getElementById('materialRequired').textContent = material.isRequired ? '是' : '否';
+                    document.getElementById('materialPassScore').textContent = material.passScore || '无';
 
-                document.getElementById('materialInfo').style.display = 'block';
-            } else {
-                alert('加载培训材料详情失败：' + response.message);
-            }
-        })
-        .catch(error => {
-            console.error('加载培训材料详情失败:', error);
-            alert('加载培训材料详情失败，请检查网络连接');
-        });
+                    document.getElementById('materialInfo').style.display = 'block';
+                } else {
+                    alert('加载培训材料详情失败：' + response.message);
+                }
+            })
+            .catch(error => {
+                console.error('加载培训材料详情失败:', error);
+                alert('加载培训材料详情失败，请检查网络连接');
+            });
     }
 
 
 
     // 更新分配按钮状态
     updateAssignButtonState() {
-        const materialId = document.getElementById('materialSelect').value;
-        const teacherSelect = document.getElementById('teacherSelect');
-        const selectedTeachers = Array.from(teacherSelect.selectedOptions).map(option => option.value);
+        const materialId = $('#materialSelect').val();
+        const selectedTeachers = $('#teacherSelect').val() || [];
 
         const submitAssignBtn = document.getElementById('submitAssign');
-        if (materialId && selectedTeachers && selectedTeachers.length > 0) {
+        if (materialId && selectedTeachers.length > 0) {
             submitAssignBtn.disabled = false;
         } else {
             submitAssignBtn.disabled = true;
@@ -620,58 +619,58 @@ class TrainingManager {
             },
             body: formData
         })
-        .then(response => response.json())
-        .then(response => {
-            // 恢复按钮状态
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-check-circle"></i> 确认分配';
+            .then(response => response.json())
+            .then(response => {
+                // 恢复按钮状态
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-check-circle"></i> 确认分配';
 
-            if (response.code === 200) {
-                const result = response.data;
+                if (response.code === 200) {
+                    const result = response.data;
 
-                // 显示结果
-                document.getElementById('successCount').textContent = result.totalAssigned;
-                document.getElementById('failCount').textContent = result.totalFailed;
+                    // 显示结果
+                    document.getElementById('successCount').textContent = result.totalAssigned;
+                    document.getElementById('failCount').textContent = result.totalFailed;
 
-                // 显示失败教师列表
-                const failedTeachers = document.getElementById('failedTeachers');
-                if (result.failedTeacherIds && result.failedTeacherIds.length > 0) {
-                    let failedList = '';
-                    result.failedTeacherIds.forEach(teacherId => {
-                        const teacherOption = teacherSelect.querySelector(`option[value="${teacherId}"]`);
-                        if (teacherOption) {
-                            failedList += `<li>${teacherOption.textContent}</li>`;
-                        } else {
-                            failedList += `<li>教师ID: ${teacherId}</li>`;
-                        }
-                    });
+                    // 显示失败教师列表
+                    const failedTeachers = document.getElementById('failedTeachers');
+                    if (result.failedTeacherIds && result.failedTeacherIds.length > 0) {
+                        let failedList = '';
+                        result.failedTeacherIds.forEach(teacherId => {
+                            const teacherOption = teacherSelect.querySelector(`option[value="${teacherId}"]`);
+                            if (teacherOption) {
+                                failedList += `<li>${teacherOption.textContent}</li>`;
+                            } else {
+                                failedList += `<li>教师ID: ${teacherId}</li>`;
+                            }
+                        });
 
-                    document.getElementById('failedTeachersList').innerHTML = failedList;
-                    failedTeachers.classList.remove('d-none');
+                        document.getElementById('failedTeachersList').innerHTML = failedList;
+                        failedTeachers.classList.remove('d-none');
+                    } else {
+                        failedTeachers.classList.add('d-none');
+                    }
+
+                    // 显示结果区域
+                    document.getElementById('assignmentResult').style.display = 'block';
+
+                    // 如果全部成功，自动刷新教师列表
+                    if (result.totalFailed === 0) {
+                        setTimeout(() => {
+                            this.loadTeachers();
+                        }, 1500);
+                    }
                 } else {
-                    failedTeachers.classList.add('d-none');
+                    alert('分配培训失败：' + response.message);
                 }
-
-                // 显示结果区域
-                document.getElementById('assignmentResult').style.display = 'block';
-
-                // 如果全部成功，自动刷新教师列表
-                if (result.totalFailed === 0) {
-                    setTimeout(() => {
-                        this.loadTeachers();
-                    }, 1500);
-                }
-            } else {
-                alert('分配培训失败：' + response.message);
-            }
-        })
-        .catch(error => {
-            // 恢复按钮状态
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-check-circle"></i> 确认分配';
-            alert('分配培训失败，请检查网络连接');
-            console.error('分配培训错误:', error);
-        });
+            })
+            .catch(error => {
+                // 恢复按钮状态
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-check-circle"></i> 确认分配';
+                alert('分配培训失败，请检查网络连接');
+                console.error('分配培训错误:', error);
+            });
     }
 
     // 格式化培训材料类型

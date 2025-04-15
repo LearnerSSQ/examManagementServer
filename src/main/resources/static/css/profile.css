@@ -1,6 +1,7 @@
 /* 个人信息页面样式 */
 .profile-container {
     max-width: 1200px;
+    width: 100%;
     margin: 0 auto;
     padding: var(--spacing-lg);
 }
@@ -83,6 +84,8 @@
     backdrop-filter: blur(10px);
     border-radius: var(--border-radius-md);
     padding: var(--spacing-lg);
+    width: 100%;
+    overflow-x: auto;
 }
 
 .section-header {
@@ -156,10 +159,114 @@
     color: var(--color-text-secondary);
 }
 
+/* 消息通知样式 */
+.message-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) 0;
+}
+
+.message-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--border-radius-sm);
+    border-left: 3px solid transparent;
+    transition: all var(--transition-speed) ease;
+}
+
+.message-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.message-item.unread {
+    border-left-color: var(--color-primary);
+    background: rgba(var(--color-primary-rgb), 0.1);
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.message-title {
+    font-weight: 600;
+    font-size: var(--font-size-md);
+}
+
+.message-time {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.message-content {
+    font-size: var(--font-size-sm);
+    line-height: 1.5;
+    color: var(--color-text-secondary);
+}
+
+.message-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: var(--spacing-xs);
+}
+
+.message-type {
+    font-size: var(--font-size-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius-full);
+}
+
+.btn-mark-read {
+    font-size: var(--font-size-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: var(--color-primary);
+    color: var(--color-text);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: background var(--transition-speed) ease;
+}
+
+.btn-mark-read:hover {
+    background: var(--color-primary-dark);
+}
+
+.btn-filter {
+    font-size: var(--font-size-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-text);
+    border: none;
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: background var(--transition-speed) ease;
+}
+
+.btn-filter:hover,
+.btn-filter.active {
+    background: var(--color-primary);
+}
+
+.message-actions {
+    display: flex;
+    gap: var(--spacing-xs);
+}
+
 .workload-chart {
     width: 100%;
-    height: 300px;
+    height: 40vh;
+    min-height: 250px;
+    max-height: 500px;
     margin-top: var(--spacing-lg);
+    position: relative;
+    overflow-x: auto;
 }
 
 .edit-button {
@@ -194,7 +301,7 @@
     backdrop-filter: blur(10px);
     border-radius: var(--border-radius-md);
     padding: var(--spacing-lg);
-    width: 100%;
+    width: 90%;
     max-width: 500px;
 }
 
@@ -309,15 +416,28 @@
 @media (max-width: 768px) {
     .profile-container {
         padding: var(--spacing-md);
+        width: 100%;
     }
 
     .profile-header {
         flex-direction: column;
         text-align: center;
+        padding: var(--spacing-md);
     }
 
     .profile-stats {
         grid-template-columns: 1fr;
+    }
+
+    .profile-section {
+        padding: var(--spacing-md);
+        overflow-x: auto;
+    }
+
+    .section-header {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+        align-items: flex-start;
     }
 
     .info-grid {
@@ -330,6 +450,56 @@
 
     .timeline-date {
         margin-bottom: var(--spacing-xs);
+    }
+
+    .workload-chart {
+        min-height: 200px;
+    }
+
+    .filter-container {
+        width: 100%;
+        margin-top: var(--spacing-xs);
+    }
+
+    .year-filter {
+        width: 100%;
+    }
+}
+
+/* 针对更小屏幕的额外优化 */
+@media (max-width: 480px) {
+    .profile-container {
+        padding: var(--spacing-sm);
+    }
+
+    .profile-header {
+        padding: var(--spacing-sm);
+    }
+
+    .profile-avatar {
+        width: 80px;
+        height: 80px;
+        font-size: var(--font-size-xl);
+    }
+
+    .profile-name {
+        font-size: var(--font-size-lg);
+    }
+
+    .profile-section {
+        padding: var(--spacing-sm);
+    }
+
+    .section-title {
+        font-size: var(--font-size-md);
+    }
+
+    .stat-value {
+        font-size: var(--font-size-xl);
+    }
+
+    .workload-chart {
+        min-height: 180px;
     }
 }
 

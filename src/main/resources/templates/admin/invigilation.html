@@ -3,7 +3,9 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>监考安排 - 考务管理系统</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" th:href="@{/css/base.css}">
     <link rel="stylesheet" th:href="@{/css/nav.css}">
     <link rel="stylesheet" th:href="@{/css/invigilation.css}">
@@ -21,375 +23,154 @@
             <h1 class="gradient-text">监考安排</h1>
             <div class="header-actions">
                 <div class="filter-bar">
-                    <select class="filter-select" onchange="filterInvigilations(this.value)">
+                    <label for="statusFilter">监考状态：</label>
+                    <select id="statusFilter" class="filter-select" onchange="filterInvigilations(this.value)"
+                        aria-label="筛选监考状态">
                         <option value="all">全部监考</option>
                         <option value="pending">待确认</option>
                         <option value="confirmed">已确认</option>
                         <option value="completed">已完成</option>
                     </select>
-                    <input type="date" class="date-filter" onchange="filterByDate(this.value)">
+                    <label for="dateFilter">日期：</label>
+                    <div class="date-range-container">
+                        <input type="date" id="startDateFilter" class="date-filter" aria-label="开始日期筛选">
+                        <span>至</span>
+                        <input type="date" id="endDateFilter" class="date-filter" aria-label="结束日期筛选">
+                    </div>
                 </div>
 
                 <!-- 考务管理员可见的添加按钮 -->
                 <div sec:authorize="hasRole('EXAM_ADMIN')">
-                    <button class="btn btn-primary" onclick="showAddInvigilationModal()">
-                        <span>添加监考任务</span>
-                    </button>
+                    <button id="addInvigilationBtn" class="btn primary-btn">添加监考任务</button>
+                    <button id="importInvigilationsBtn" class="btn secondary-btn">批量导入</button>
+                    <button id="exportInvigilationsBtn" class="btn secondary-btn">导出安排</button>
                 </div>
             </div>
         </div>
 
-        <div class="invigilation-grid" id="invigilationGrid">
-            <!-- 监考卡片将通过JavaScript动态加载 -->
+        <!-- 统计信息面板 (仅管理员可见) -->
+        <div class="statistics-panel" sec:authorize="hasRole('EXAM_ADMIN')">
+            <div class="stat-card">
+                <h3>总监考任务</h3>
+                <div class="stat-value" id="totalInvigilations">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>待确认</h3>
+                <div class="stat-value" id="pendingInvigilations">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>已确认</h3>
+                <div class="stat-value" id="confirmedInvigilations">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>已完成</h3>
+                <div class="stat-value" id="completedInvigilations">0</div>
+            </div>
         </div>
-    </div>
 
-    <!-- 添加/编辑监考模态框 -->
-    <div id="invigilationModal" class="modal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="closeModal()">&times;</span>
-            <h2 class="modal-title gradient-text" id="modalTitle">添加监考任务</h2>
-            <form id="invigilationForm">
-                <div class="form-group">
-                    <label for="examName">考试名称</label>
-                    <input type="text" id="examName" required>
-                </div>
-                <div class="form-group">
-                    <label for="examDate">考试日期</label>
-                    <input type="datetime-local" id="examDate" required>
-                </div>
-                <div class="form-group">
-                    <label for="location">考试地点</label>
-                    <input type="text" id="location" required>
-                </div>
-                <div class="form-group">
-                    <label for="duration">考试时长（分钟）</label>
-                    <input type="number" id="duration" required>
-                </div>
-                <div class="form-group">
-                    <label for="teacherId">监考教师</label>
-                    <select id="teacherId" required>
-                        <!-- 教师列表将通过JavaScript动态加载 -->
+        <!-- 监考任务网格 -->
+        <div id="invigilationGrid" class="invigilation-grid">
+            <!-- 监考任务卡片将通过JavaScript动态加载 -->
+        </div>
+
+        <!-- 标签页导航 (仅管理员可见) -->
+        <div class="tabs-container" sec:authorize="hasRole('EXAM_ADMIN')">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="assignments">监考任务</button>
+                <button class="tab-btn" data-tab="records">监考记录</button>
+                <button class="tab-btn" data-tab="evaluations">评价管理</button>
+                <button class="tab-btn" data-tab="exceptions">异常情况</button>
+                <button class="tab-btn" data-tab="statistics">统计分析</button>
+            </div>
+
+            <!-- 监考任务标签页内容 -->
+            <div id="assignments" class="tab-content active">
+                <!-- 已由上方的invigilationGrid填充 -->
+            </div>
+
+            <!-- 监考记录标签页内容 -->
+            <div id="records" class="tab-content">
+                <div class="records-filter">
+                    <label for="recordSearchInput">搜索：</label>
+                    <input type="text" placeholder="搜索监考记录..." id="recordSearchInput" aria-label="搜索监考记录">
+                    <label for="recordTypeFilter">记录类型：</label>
+                    <select id="recordTypeFilter" aria-label="筛选记录类型">
+                        <option value="all">所有类型</option>
+                        <option value="normal">正常记录</option>
+                        <option value="exception">异常记录</option>
                     </select>
+                    <button class="btn primary-btn" id="searchRecordsBtn">搜索</button>
                 </div>
-                <div class="form-group">
-                    <label for="notes">备注</label>
-                    <textarea id="notes" rows="3"></textarea>
+                <div id="recordsGrid" class="records-grid">
+                    <!-- 监考记录将通过JavaScript动态加载 -->
                 </div>
-                <button type="submit" class="btn btn-primary">
-                    <span>保存</span>
-                </button>
-            </form>
+            </div>
+
+            <!-- 评价管理标签页内容 -->
+            <div id="evaluations" class="tab-content">
+                <div class="evaluations-filter">
+                    <label for="teacherSearchInput">教师：</label>
+                    <input type="text" placeholder="搜索教师姓名..." id="teacherSearchInput" aria-label="搜索教师姓名">
+                    <label for="ratingFilter">评分：</label>
+                    <select id="ratingFilter" aria-label="筛选评分">
+                        <option value="all">所有评分</option>
+                        <option value="5">5星</option>
+                        <option value="4">4星</option>
+                        <option value="3">3星</option>
+                        <option value="2">2星</option>
+                        <option value="1">1星</option>
+                    </select>
+                    <button class="btn primary-btn" id="searchEvaluationsBtn">搜索</button>
+                </div>
+                <div id="evaluationsGrid" class="evaluations-grid">
+                    <!-- 评价记录将通过JavaScript动态加载 -->
+                </div>
+            </div>
+
+            <!-- 异常情况标签页内容 -->
+            <div id="exceptions" class="tab-content">
+                <div class="exceptions-filter">
+                    <label for="exceptionSearchInput">搜索：</label>
+                    <input type="text" placeholder="搜索异常情况..." id="exceptionSearchInput" aria-label="搜索异常情况">
+                    <label for="exceptionTypeFilter">异常类型：</label>
+                    <select id="exceptionTypeFilter" aria-label="筛选异常类型">
+                        <option value="all">所有类型</option>
+                        <option value="absence">缺席</option>
+                        <option value="late">迟到</option>
+                        <option value="leave">请假</option>
+                        <option value="other">其他</option>
+                    </select>
+                    <button class="btn primary-btn" id="searchExceptionsBtn">搜索</button>
+                </div>
+                <div id="exceptionsGrid" class="exceptions-grid">
+                    <!-- 异常情况将通过JavaScript动态加载 -->
+                </div>
+            </div>
+
+            <!-- 统计分析标签页内容 -->
+            <div id="statistics" class="tab-content">
+                <div class="statistics-filter">
+                    <label for="statisticsTypeFilter">统计类型：</label>
+                    <select id="statisticsTypeFilter" aria-label="选择统计类型">
+                        <option value="teacher">教师监考统计</option>
+                        <option value="department">部门工作量分析</option>
+                        <option value="time">监考时长统计</option>
+                    </select>
+                    <button class="btn primary-btn" id="generateReportBtn">生成报表</button>
+                </div>
+                <div id="statisticsContent" class="statistics-content">
+                    <!-- 统计图表将通过JavaScript动态加载 -->
+                </div>
+            </div>
         </div>
     </div>
 
-    <script>
-        // 添加认证工具函数
-        const auth = {
-            getToken() {
-                return localStorage.getItem('token');
-            },
+    <!-- 模态框容器 -->
+    <div id="modalContainer" class="modal-container hidden"></div>
 
-            setToken(token) {
-                localStorage.setItem('token', token);
-            },
-
-            removeToken() {
-                localStorage.removeItem('token');
-            },
-
-            getAuthHeader() {
-                const token = this.getToken();
-                return token ? { 'Authorization': `Bearer ${token}` } : {};
-            },
-
-            isAuthenticated() {
-                return !!this.getToken();
-            }
-        };
-
-        // 加载监考列表
-        function loadInvigilations() {
-            const grid = document.getElementById('invigilationGrid');
-            grid.innerHTML = '<div class="loading">加载中...</div>';
-
-            fetch('/api/assignments/my', {
-                headers: {
-                    ...auth.getAuthHeader(),
-                    'Content-Type': 'application/json'
-                }
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(response.statusText);
-                    }
-                    return response.json();
-                })
-                .then(response => {
-                    if (response.code === 200 && Array.isArray(response.data)) {
-                        grid.innerHTML = '';
-                        if (response.data.length === 0) {
-                            grid.innerHTML = '<div class="no-data">暂无监考安排</div>';
-                            return;
-                        }
-                        response.data.forEach(invigilation => {
-                            const card = createInvigilationCard(invigilation);
-                            grid.appendChild(card);
-                        });
-                    } else {
-                        throw new Error(response.message || '数据格式错误');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    grid.innerHTML = `
-                        <div class="error-message">
-                            <p>加载数据失败，请重试</p>
-                            <button class="vscode-button" onclick="loadInvigilations()">
-                                <i class="fas fa-redo"></i> 重新加载
-                            </button>
-                        </div>
-                    `;
-                });
-        }
-
-        // 创建监考卡片
-        function createInvigilationCard(invigilation) {
-            const card = document.createElement('div');
-            card.className = 'invigilation-card';
-
-            const statusClass = getStatusClass(invigilation.status);
-            const formattedStartDate = formatDateTime(invigilation.examStart);
-            const formattedEndDate = formatDateTime(invigilation.examEnd);
-
-            card.innerHTML = `
-                <div class="invigilation-header">
-                    <span class="exam-name">${invigilation.courseName}</span>
-                    <span class="status-badge ${statusClass}">${invigilation.status.description}</span>
-                </div>
-                <div class="invigilation-info">
-                    <p><i class="fas fa-map-marker-alt"></i> ${invigilation.location}</p>
-                    <p><i class="fas fa-calendar-alt"></i> ${formattedStartDate}</p>
-                    <p><i class="fas fa-clock"></i> ${formattedEndDate}</p>
-                    <p><i class="fas fa-user"></i> 监考教师: ${invigilation.teacherName || '未分配'}</p>
-                    <p><i class="fas fa-bookmark"></i> 监考角色: ${invigilation.role ? invigilation.role.description : '未指定'}</p>
-                </div>
-                <div class="invigilation-actions">
-                    ${createActionButtons(invigilation)}
-                </div>
-            `;
-
-            return card;
-        }
-
-        // 获取状态样式类
-        function getStatusClass(status) {
-            switch (status) {
-                case 'PENDING': return 'status-pending';
-                case 'CONFIRMED': return 'status-confirmed';
-                case 'COMPLETED': return 'status-completed';
-                default: return '';
-            }
-        }
-
-        // 格式化日期
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleString('zh-CN', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        }
-
-        // 格式化日期时间
-        function formatDateTime(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleString('zh-CN', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-        }
-
-        // 创建操作按钮
-        function createActionButtons(invigilation) {
-            const isExamAdmin = document.querySelector('[sec:authorize="hasRole(\'EXAM_ADMIN\')"]') !== null;
-            let buttons = '';
-
-            if (invigilation.status === 'PENDING') {
-                buttons += `
-                    <button class="btn btn-primary" onclick="confirmInvigilation(${invigilation.id})">
-                        <span>确认</span>
-                    </button>
-                    <button class="btn btn-secondary" onclick="rejectInvigilation(${invigilation.id})">
-                        <span>拒绝</span>
-                    </button>
-                `;
-            }
-
-            if (isExamAdmin) {
-                buttons += `
-                    <button class="btn btn-primary" onclick="editInvigilation(${invigilation.id})">
-                        <span>编辑</span>
-                    </button>
-                `;
-            }
-
-            return buttons;
-        }
-
-        // 确认监考
-        function confirmInvigilation(id) {
-            fetch(`/api/assignments/${id}/confirm`, { method: 'POST' })
-                .then(response => response.json())
-                .then(() => loadInvigilations())
-                .catch(error => console.error('Error confirming invigilation:', error));
-        }
-
-        // 拒绝监考
-        function rejectInvigilation(id) {
-            fetch(`/api/assignments/${id}/reject`, { method: 'POST' })
-                .then(response => response.json())
-                .then(() => loadInvigilations())
-                .catch(error => console.error('Error rejecting invigilation:', error));
-        }
-
-        // 显示添加监考模态框
-        function showAddInvigilationModal() {
-            document.getElementById('modalTitle').textContent = '添加监考任务';
-            document.getElementById('invigilationForm').reset();
-            document.getElementById('invigilationModal').style.display = 'block';
-            loadTeachers();
-        }
-
-        // 加载教师列表
-        function loadTeachers() {
-            fetch('/api/teachers')
-                .then(response => response.json())
-                .then(data => {
-                    const select = document.getElementById('teacherId');
-                    select.innerHTML = '<option value="">请选择教师</option>';
-                    data.forEach(teacher => {
-                        const option = document.createElement('option');
-                        option.value = teacher.id;
-                        option.textContent = `${teacher.name} (${teacher.department})`;
-                        select.appendChild(option);
-                    });
-                })
-                .catch(error => console.error('Error loading teachers:', error));
-        }
-
-        // 关闭模态框
-        function closeModal() {
-            document.getElementById('invigilationModal').style.display = 'none';
-        }
-
-        // 表单提交处理
-        document.getElementById('invigilationForm').addEventListener('submit', function (e) {
-            e.preventDefault();
-            const formData = {
-                examName: document.getElementById('examName').value,
-                examDate: document.getElementById('examDate').value,
-                location: document.getElementById('location').value,
-                duration: parseInt(document.getElementById('duration').value),
-                teacherId: parseInt(document.getElementById('teacherId').value),
-                notes: document.getElementById('notes').value
-            };
-
-            fetch('/api/assignments', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(formData)
-            })
-                .then(response => response.json())
-                .then(() => {
-                    closeModal();
-                    loadInvigilations();
-                })
-                .catch(error => console.error('Error saving invigilation:', error));
-        });
-
-        // 根据当前URL判断是否为管理页面
-        const isManagePage = window.location.pathname === '/api/assignments/manage';
-
-        if (isManagePage) {
-            // 管理页面特定的初始化
-            document.querySelector('.page-header h1').textContent = '监考管理';
-            // 显示所有教师的监考任务
-            loadAllInvigilations();
-        } else {
-            // 普通页面加载个人监考
-            loadInvigilations();
-        }
-
-        // 修改 loadAllInvigilations 函数
-        function loadAllInvigilations() {
-            const grid = document.getElementById('invigilationGrid');
-            grid.innerHTML = '<div class="loading">加载中...</div>';
-
-            fetch('/api/invigilation/assignments/all', {
-                headers: {
-                    ...auth.getAuthHeader(),
-                    'Content-Type': 'application/json'
-                }
-            })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(response.statusText);
-                    }
-                    return response.json();
-                })
-                .then(response => {
-                    if (response.code === 200 && Array.isArray(response.data)) {
-                        grid.innerHTML = '';
-                        if (response.data.length === 0) {
-                            grid.innerHTML = '<div class="no-data">暂无监考安排</div>';
-                            return;
-                        }
-                        response.data.forEach(invigilation => {
-                            const card = createInvigilationCard(invigilation);
-                            grid.appendChild(card);
-                        });
-                    } else {
-                        throw new Error(response.message || '数据格式错误');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    grid.innerHTML = `
-                        <div class="error-message">
-                            <p>加载数据失败，请重试</p>
-                            <button class="vscode-button" onclick="loadAllInvigilations()">
-                                <i class="fas fa-redo"></i> 重新加载
-                            </button>
-                        </div>
-                    `;
-                });
-        }
-
-        // 页面加载时获取监考列表
-        document.addEventListener('DOMContentLoaded', function () {
-            if (!auth.isAuthenticated()) {
-                window.location.href = '/login';
-                return;
-            }
-
-            const isManagePage = window.location.pathname.endsWith('/assignments/manage');
-            if (isManagePage) {
-                document.querySelector('.page-header h1').textContent = '监考管理';
-                loadAllInvigilations();
-            } else {
-                loadInvigilations();
-            }
-        });
-    </script>
+    <!-- JavaScript引用 -->
+    <script th:src="@{/js/tabs-manager.js}"></script>
+    <script th:src="@{/js/invigilation.js}"></script>
 </body>
 
 </html>

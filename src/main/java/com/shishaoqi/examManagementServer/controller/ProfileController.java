@@ -2,10 +2,12 @@ package com.shishaoqi.examManagementServer.controller;
 
 import com.shishaoqi.examManagementServer.common.Result;
 import com.shishaoqi.examManagementServer.entity.teacher.Teacher;
+import com.shishaoqi.examManagementServer.entity.message.Message;
 import com.shishaoqi.examManagementServer.service.TeacherService;
 import com.shishaoqi.examManagementServer.service.InvigilatorAssignmentService;
 import com.shishaoqi.examManagementServer.service.InvigilationRecordService;
 import com.shishaoqi.examManagementServer.service.TrainingRecordService;
+import com.shishaoqi.examManagementServer.service.MessageService;
 import com.shishaoqi.examManagementServer.security.TeacherUserDetails;
 import com.shishaoqi.examManagementServer.exception.BusinessException;
 import com.shishaoqi.examManagementServer.exception.ErrorCode;
@@ -38,6 +40,7 @@ public class ProfileController {
     private final BCryptPasswordEncoder passwordEncoder;
     private final InvigilationRecordService invigilationRecordService;
     private final TrainingRecordService trainingRecordService;
+    private final MessageService messageService;
 
     @Autowired
     public ProfileController(
@@ -46,11 +49,13 @@ public class ProfileController {
             InvigilatorAssignmentService invigilatorAssignmentService,
             InvigilationRecordService invigilationRecordService,
             TrainingRecordService trainingRecordService,
-            EvaluationService evaluationService) {
+            EvaluationService evaluationService,
+            MessageService messageService) {
         this.teacherService = teacherService;
         this.passwordEncoder = passwordEncoder;
         this.invigilationRecordService = invigilationRecordService;
         this.trainingRecordService = trainingRecordService;
+        this.messageService = messageService;
     }
 
     @GetMapping
@@ -98,6 +103,14 @@ public class ProfileController {
             Map<String, Integer> workloadStats = calculateWorkloadStats(invigilationHistory);
             model.addAttribute("workloadStats", workloadStats);
 
+            // 获取用户消息
+            List<Message> recentMessages = messageService.getTeacherMessages(teacherId);
+            model.addAttribute("messages", recentMessages);
+
+            // 获取未读消息数量
+            int unreadCount = messageService.getUnreadCount(teacherId);
+            model.addAttribute("unreadCount", unreadCount);
+
             log.info("成功获取教师{}的个人信息", teacher.getName());
             return "profile";
 
@@ -119,6 +132,8 @@ public class ProfileController {
         model.addAttribute("trainingCompletion", emptyTraining);
         model.addAttribute("invigilationHistory", new ArrayList<>());
         model.addAttribute("workloadStats", new HashMap<>());
+        model.addAttribute("messages", new ArrayList<>());
+        model.addAttribute("unreadCount", 0);
 
         return "profile";
     }
@@ -129,6 +144,10 @@ public class ProfileController {
     }
 
     private Map<String, Integer> calculateWorkloadStats(List<Map<String, Object>> history) {
+        return calculateWorkloadStats(history, LocalDateTime.now().getYear());
+    }
+
+    private Map<String, Integer> calculateWorkloadStats(List<Map<String, Object>> history, int year) {
         Map<String, Integer> monthlyStats = new HashMap<>();
         for (int i = 1; i <= 12; i++) {
             monthlyStats.put(String.valueOf(i), 0);
@@ -138,7 +157,7 @@ public class ProfileController {
             history.stream()
                     .map(record -> (LocalDateTime) record.get("examTime")) // 修改这里，与返回的数据结构对应
                     .filter(Objects::nonNull)
-                    .filter(date -> date.getYear() == LocalDateTime.now().getYear())
+                    .filter(date -> date.getYear() == year)
                     .forEach(date -> {
                         String month = String.valueOf(date.getMonthValue());
                         monthlyStats.merge(month, 1, Integer::sum);
@@ -146,6 +165,42 @@ public class ProfileController {
         }
 
         return monthlyStats;
+    }
+
+    @GetMapping("/workload-stats")
+    @ResponseBody
+    public Result<Map<String, Integer>> getWorkloadStats(
+            @AuthenticationPrincipal TeacherUserDetails userDetails,
+            @RequestParam(required = false) Integer year) {
+        try {
+            if (userDetails == null || userDetails.getTeacher() == null) {
+                return Result.error(ErrorCode.UNAUTHORIZED.getCode(), "请先登录");
+            }
+
+            Teacher teacher = userDetails.getTeacher();
+            Integer teacherId = teacher.getTeacherId();
+
+            if (teacherId == null) {
+                return Result.error(ErrorCode.PARAM_ERROR.getCode(), "教师信息不完整");
+            }
+
+            // 如果未指定年份，使用当前年份
+            if (year == null) {
+                year = LocalDateTime.now().getYear();
+            }
+
+            // 获取指定年份的监考历史记录
+            List<Map<String, Object>> invigilationHistory = invigilationRecordService
+                    .getTeacherInvigilationHistoryByYear(teacherId, year);
+
+            // 计算工作量统计
+            Map<String, Integer> workloadStats = calculateWorkloadStats(invigilationHistory, year);
+
+            return Result.success(workloadStats);
+        } catch (Exception e) {
+            log.error("获取工作量统计数据失败", e);
+            return Result.error(ErrorCode.SYSTEM_ERROR.getCode(), "系统错误，请稍后重试");
+        }
     }
 
     @PostMapping("/update")

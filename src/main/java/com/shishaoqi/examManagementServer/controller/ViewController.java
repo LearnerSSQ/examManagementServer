@@ -29,7 +29,7 @@ public class ViewController {
 
     @GetMapping("/invigilation")
     public String invigilationGet() {
-        return "invigilation";
+        return "admin/invigilation";
     }
 
     @GetMapping("/training")

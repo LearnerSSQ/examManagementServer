@@ -24,14 +24,6 @@
             <!-- 系统管理员专属 -->
             <div class="nav-group" sec:authorize="hasRole('ADMIN')">
                 <div class="nav-group-title">系统管理</div>
-                <a th:href="@{/system/settings}" class="nav-item" sec:authorize="hasRole('ADMIN')">
-                    <i class="fas fa-cog"></i>
-                    <span>系统设置</span>
-                </a>
-                <a th:href="@{/system/logs}" class="nav-item" sec:authorize="hasRole('ADMIN')">
-                    <i class="fas fa-clipboard-list"></i>
-                    <span>系统日志</span>
-                </a>
                 <a th:href="@{/api/teachers/manage}" class="nav-item" sec:authorize="hasRole('ADMIN')">
                     <i class="fas fa-users"></i>
                     <span>教师管理</span>
@@ -45,17 +37,9 @@
             <!-- 考务管理员专属 -->
             <div class="nav-group" sec:authorize="hasRole('EXAM_ADMIN')">
                 <div class="nav-group-title">考务管理</div>
-                <a th:href="@{/api/assignments/manage}" class="nav-item" sec:authorize="hasRole('EXAM_ADMIN')">
+                <a th:href="@{/api/admin/invigilation}" class="nav-item" sec:authorize="hasRole('EXAM_ADMIN')">
                     <i class="fas fa-tasks"></i>
                     <span>监考安排</span>
-                </a>
-                <a th:href="@{/api/training/manage}" class="nav-item" sec:authorize="hasRole('EXAM_ADMIN')">
-                    <i class="fas fa-graduation-cap"></i>
-                    <span>培训管理</span>
-                </a>
-                <a th:href="@{/api/teachers}" class="nav-item" sec:authorize="hasRole('EXAM_ADMIN')">
-                    <i class="fas fa-user-graduate"></i>
-                    <span>教师列表</span>
                 </a>
             </div>
 

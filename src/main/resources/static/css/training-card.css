@@ -1,0 +1,321 @@
+/* 培训卡片样式 */
+.training-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.training-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--border-radius-md);
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    color: var(--color-text);
+    position: relative;
+    overflow: hidden;
+}
+
+.training-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-dark));
+    opacity: 0.7;
+}
+
+.training-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    border-color: rgba(var(--color-primary-rgb), 0.3);
+}
+
+.training-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.training-title {
+    margin: 0 0 1rem 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-text);
+    background: linear-gradient(45deg, var(--color-text), rgba(255, 255, 255, 0.7));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.training-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: var(--border-radius-full);
+    transition: all 0.3s ease;
+}
+
+.meta-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.training-meta i {
+    color: var(--color-primary);
+    margin-right: 0.5rem;
+}
+
+.training-description {
+    margin-bottom: 1.5rem;
+    color: var(--color-text);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    flex-grow: 1;
+}
+
+.training-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.training-status {
+    padding: 0.35rem 0.85rem;
+    border-radius: var(--border-radius-full);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.status-not_started {
+    background-color: rgba(255, 213, 79, 0.2);
+    color: #ffd54f;
+    border: 1px solid rgba(255, 213, 79, 0.3);
+}
+
+.status-in_progress {
+    background-color: rgba(33, 150, 243, 0.2);
+    color: #42a5f5;
+    border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+.status-completed {
+    background-color: rgba(76, 175, 80, 0.2);
+    color: #81c784;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.status-expired {
+    background-color: rgba(244, 67, 54, 0.2);
+    color: #e57373;
+    border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.training-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.progress-bar {
+    height: 8px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: var(--border-radius-full);
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-dark));
+    border-radius: var(--border-radius-full);
+    transition: width 0.5s ease;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0, 180, 219, 0.5);
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg,
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.3) 50%,
+            rgba(255, 255, 255, 0) 100%);
+    animation: shimmer 1.5s infinite;
+    transform: translateX(-100%);
+}
+
+@keyframes shimmer {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.progress-text {
+    font-size: 0.8rem;
+    color: var(--color-text-secondary);
+}
+
+.progress-percentage {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-primary);
+}
+
+.training-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.training-actions .btn {
+    padding: 0.5rem 1rem;
+    border-radius: var(--border-radius-sm);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-glow {
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
+}
+
+.btn-glow:before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, var(--color-primary), var(--color-primary-dark), var(--color-primary));
+    z-index: -1;
+    border-radius: calc(var(--border-radius-sm) + 2px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.btn-glow:hover:before {
+    opacity: 1;
+    animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+    0% {
+        filter: hue-rotate(0deg);
+    }
+
+    100% {
+        filter: hue-rotate(360deg);
+    }
+}
+
+.training-actions .btn i {
+    font-size: 0.9rem;
+}
+
+.training-actions .btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.training-actions .btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .training-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .training-meta {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .training-footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.training-card {
+    animation: fadeIn 0.5s ease-out forwards;
+}
+
+.training-grid>div:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+.training-grid>div:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.training-grid>div:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+.training-grid>div:nth-child(4) {
+    animation-delay: 0.4s;
+}
+
+.training-grid>div:nth-child(5) {
+    animation-delay: 0.5s;
+}
+
+.training-grid>div:nth-child(6) {
+    animation-delay: 0.6s;
+}

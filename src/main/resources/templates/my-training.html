@@ -8,6 +8,7 @@
     <link rel="stylesheet" th:href="@{/css/base.css}">
     <link rel="stylesheet" th:href="@{/css/nav.css}">
     <link rel="stylesheet" th:href="@{/css/training.css}">
+    <link rel="stylesheet" th:href="@{/css/training-card.css}">
 </head>
 
 <body>
@@ -41,12 +42,15 @@
                         th:with="material=${@trainingMaterialServiceImpl.getById(training.materialId)}"
                         th:text="${material != null ? material.title : '未知培训'}">培训名称</h3>
                     <div class="training-meta">
-                        <span><i class="fas fa-clock"></i> <span
+                        <span class="meta-item"><i class="fas fa-clock"></i> <span
                                 th:with="material=${@trainingMaterialServiceImpl.getById(training.materialId)}"
                                 th:text="${material != null ? material.duration + '分钟' : '未知时长'}">培训时长</span></span>
-                        <span><i class="fas fa-chalkboard-teacher"></i> <span
+                        <span class="meta-item"><i class="fas fa-chalkboard-teacher"></i> <span
                                 th:with="material=${@trainingMaterialServiceImpl.getById(training.materialId)}"
                                 th:text="${material != null ? material.type.description : '未知类型'}">培训类型</span></span>
+                        <span class="meta-item" th:if="${training.startTime != null}"><i
+                                class="fas fa-calendar-alt"></i> <span
+                                th:text="${#temporals.format(training.startTime, 'yyyy-MM-dd')}">开始日期</span></span>
                     </div>
                     <p class="training-description"
                         th:with="material=${@trainingMaterialServiceImpl.getById(training.materialId)}"
@@ -60,24 +64,33 @@
                             <div class="progress-bar">
                                 <div class="progress-fill" th:style="'width: ' + ${training.progress} + '%'"></div>
                             </div>
-                            <span th:text="${training.progress + '%'}">0%</span>
+                            <div class="progress-info">
+                                <span class="progress-text">完成进度</span>
+                                <span class="progress-percentage" th:text="${training.progress + '%'}">0%</span>
+                            </div>
                         </div>
                     </div>
                     <div class="training-actions">
                         <button
                             th:if="${training.status == T(com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus).NOT_STARTED}"
-                            class="btn btn-primary" th:onclick="'startTraining(' + ${training.recordId} + ')'">
+                            class="btn btn-primary btn-glow" th:onclick="'startTraining(' + ${training.recordId} + ')'">
                             <i class="fas fa-play"></i> 开始学习
                         </button>
                         <button
                             th:if="${training.status == T(com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus).IN_PROGRESS}"
-                            class="btn btn-primary" th:onclick="'continueTraining(' + ${training.recordId} + ')'">
+                            class="btn btn-primary btn-glow"
+                            th:onclick="'continueTraining(' + ${training.recordId} + ')'">
                             <i class="fas fa-forward"></i> 继续学习
                         </button>
                         <button
                             th:if="${training.status == T(com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus).COMPLETED}"
-                            class="btn btn-info" disabled>
+                            class="btn btn-success" disabled>
                             <i class="fas fa-check-circle"></i> 已完成
+                        </button>
+                        <button
+                            th:if="${training.status == T(com.shishaoqi.examManagementServer.entity.training.TrainingRecordStatus).EXPIRED}"
+                            class="btn btn-danger" disabled>
+                            <i class="fas fa-clock"></i> 已过期
                         </button>
                     </div>
                 </div>

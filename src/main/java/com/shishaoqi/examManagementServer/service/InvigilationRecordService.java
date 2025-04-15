@@ -194,7 +194,23 @@ public interface InvigilationRecordService extends IService<InvigilationRecord> 
         /**
          * 获取监考统计信息
          */
+        /**
+         * 获取监考统计信息
+         * 
+         * @param startTime 开始时间
+         * @param endTime 结束时间
+         * @return 统计信息（包含总记录数、异常记录数等）
+         */
         Map<String, Object> getInvigilationStatistics(LocalDateTime startTime, LocalDateTime endTime);
+
+        /**
+         * 获取教师监考统计信息
+         * 
+         * @param startTime 开始时间
+         * @param endTime 结束时间
+         * @return 教师监考统计信息（包含每位教师的监考次数、完成情况等）
+         */
+        Map<String, Object> getTeacherInvigilationStatistics(LocalDateTime startTime, LocalDateTime endTime);
 
         /**
          * 获取教师监考历史记录
@@ -203,4 +219,20 @@ public interface InvigilationRecordService extends IService<InvigilationRecord> 
          * @return 监考记录列表
          */
         List<Map<String, Object>> getTeacherInvigilationHistory(Integer teacherId);
+        
+        /**
+         * 获取教师指定年份的监考历史记录
+         * 
+         * @param teacherId 教师ID
+         * @param year 年份
+         * @return 监考记录列表
+         */
+        List<Map<String, Object>> getTeacherInvigilationHistoryByYear(Integer teacherId, int year);
+
+    /**
+     * 获取监考管理仪表盘数据
+     * 
+     * @return 包含监考统计信息的Map
+     */
+    Map<String, Object> getDashboardData();
 }

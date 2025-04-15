@@ -14,27 +14,27 @@ public interface MessageMapper extends BaseMapper<Message> {
         /**
          * 标记消息为已读
          */
-        @Update("UPDATE message SET status = 1, read_time = #{readTime} WHERE message_id = #{messageId}")
+        @Update("UPDATE message SET status = 'READ', read_time = #{readTime} WHERE message_id = #{messageId}")
         int markAsRead(@Param("messageId") Long messageId, @Param("readTime") LocalDateTime readTime);
 
         /**
          * 批量标记消息为已读
          */
-        @Update("UPDATE message SET status = 1, read_time = #{readTime} " +
-                        "WHERE teacher_id = #{teacherId} AND status = 0")
+        @Update("UPDATE message SET status = 'READ', read_time = #{readTime} " +
+                        "WHERE receiver_id = #{teacherId} AND status = 'UNREAD'")
         int markAllAsRead(@Param("teacherId") Integer teacherId, @Param("readTime") LocalDateTime readTime);
 
         /**
          * 获取教师未读消息数量
          */
-        @Select("SELECT COUNT(*) FROM message WHERE teacher_id = #{teacherId} AND status = 0")
+        @Select("SELECT COUNT(*) FROM message WHERE receiver_id = #{teacherId} AND status = 'UNREAD'")
         int getUnreadCount(@Param("teacherId") Integer teacherId);
 
         /**
          * 获取教师指定类型的消息
          */
-        @Select("SELECT * FROM message WHERE teacher_id = #{teacherId} AND type = #{type} " +
-                        "ORDER BY create_time DESC LIMIT #{limit} OFFSET #{offset}")
+        @Select("SELECT * FROM message WHERE receiver_id = #{teacherId} AND type = #{type} " +
+                        "ORDER BY send_time DESC LIMIT #{limit} OFFSET #{offset}")
         List<Message> getMessagesByType(@Param("teacherId") Integer teacherId,
                         @Param("type") Integer type,
                         @Param("limit") Integer limit,
@@ -43,7 +43,7 @@ public interface MessageMapper extends BaseMapper<Message> {
         /**
          * 获取考前培训相关的消息
          */
-        @Select("SELECT * FROM message WHERE teacher_id = #{teacherId} " +
+        @Select("SELECT * FROM message WHERE receiver_id = #{teacherId} " +
                         "AND type = #{type} AND category = 'TRAINING' " +
                         "AND create_time >= #{startTime} " +
                         "ORDER BY priority DESC, create_time DESC")
@@ -54,7 +54,7 @@ public interface MessageMapper extends BaseMapper<Message> {
         /**
          * 获取考试相关的紧急通知
          */
-        @Select("SELECT * FROM message WHERE teacher_id = #{teacherId} " +
+        @Select("SELECT * FROM message WHERE receiver_id = #{teacherId} " +
                         "AND type = #{type} AND priority = 'HIGH' " +
                         "AND category = 'EXAM' AND status = 0 " +
                         "ORDER BY create_time DESC")
@@ -64,7 +64,7 @@ public interface MessageMapper extends BaseMapper<Message> {
         /**
          * 获取签到提醒消息
          */
-        @Select("SELECT * FROM message WHERE teacher_id = #{teacherId} " +
+        @Select("SELECT * FROM message WHERE receiver_id = #{teacherId} " +
                         "AND type = #{type} AND category = 'SIGN_IN' " +
                         "AND exam_date = #{examDate} " +
                         "ORDER BY create_time DESC")
@@ -93,7 +93,7 @@ public interface MessageMapper extends BaseMapper<Message> {
                         "SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as read_count, " +
                         "MAX(create_time) as last_message_time " +
                         "FROM message " +
-                        "WHERE teacher_id = #{teacherId} " +
+                        "WHERE receiver_id = #{teacherId} " +
                         "GROUP BY type")
         List<Map<String, Object>> getTeacherMessageStatistics(@Param("teacherId") Integer teacherId);
 
@@ -101,8 +101,8 @@ public interface MessageMapper extends BaseMapper<Message> {
          * 获取指定时间范围内的消息
          */
         @Select("SELECT * FROM message " +
-                        "WHERE create_time BETWEEN #{startTime} AND #{endTime} " +
-                        "ORDER BY create_time DESC LIMIT #{limit} OFFSET #{offset}")
+                        "WHERE send_time BETWEEN #{startTime} AND #{endTime} " +
+                        "ORDER BY send_time DESC LIMIT #{limit} OFFSET #{offset}")
         List<Message> getMessagesByTimeRange(@Param("startTime") LocalDateTime startTime,
                         @Param("endTime") LocalDateTime endTime,
                         @Param("limit") Integer limit,
@@ -112,10 +112,10 @@ public interface MessageMapper extends BaseMapper<Message> {
          * 获取教师的紧急通知
          */
         @Select("SELECT * FROM message " +
-                        "WHERE teacher_id = #{teacherId} " +
+                        "WHERE receiver_id = #{teacherId} " +
                         "AND type = 1 " +
                         "AND title = '紧急通知' " +
-                        "ORDER BY create_time DESC LIMIT #{limit}")
+                        "ORDER BY send_time DESC LIMIT #{limit}")
         List<Message> getUrgentNotifications(@Param("teacherId") Integer teacherId,
                         @Param("limit") Integer limit);
 
@@ -123,9 +123,9 @@ public interface MessageMapper extends BaseMapper<Message> {
          * 获取教师的监考提醒
          */
         @Select("SELECT * FROM message " +
-                        "WHERE teacher_id = #{teacherId} " +
+                        "WHERE receiver_id = #{teacherId} " +
                         "AND type = 2 " +
-                        "ORDER BY create_time DESC LIMIT #{limit}")
+                        "ORDER BY send_time DESC LIMIT #{limit}")
         List<Message> getExamReminders(@Param("teacherId") Integer teacherId,
                         @Param("limit") Integer limit);
 
@@ -133,9 +133,9 @@ public interface MessageMapper extends BaseMapper<Message> {
          * 获取教师的培训通知
          */
         @Select("SELECT * FROM message " +
-                        "WHERE teacher_id = #{teacherId} " +
+                        "WHERE receiver_id = #{teacherId} " +
                         "AND type = 3 " +
-                        "ORDER BY create_time DESC LIMIT #{limit}")
+                        "ORDER BY send_time DESC LIMIT #{limit}")
         List<Message> getTrainingNotifications(@Param("teacherId") Integer teacherId,
                         @Param("limit") Integer limit);
 
@@ -149,8 +149,8 @@ public interface MessageMapper extends BaseMapper<Message> {
          * 获取教师的所有未读消息
          */
         @Select("SELECT * FROM message " +
-                        "WHERE teacher_id = #{teacherId} AND status = 0 " +
-                        "ORDER BY create_time DESC LIMIT #{limit} OFFSET #{offset}")
+                        "WHERE receiver_id = #{teacherId} AND status = 0 " +
+                        "ORDER BY send_time DESC LIMIT #{limit} OFFSET #{offset}")
         List<Message> getUnreadMessages(@Param("teacherId") Integer teacherId,
                         @Param("limit") Integer limit,
                         @Param("offset") Integer offset);
@@ -159,8 +159,8 @@ public interface MessageMapper extends BaseMapper<Message> {
          * 获取教师的所有消息
          */
         @Select("SELECT * FROM message " +
-                        "WHERE teacher_id = #{teacherId} " +
-                        "ORDER BY create_time DESC LIMIT #{limit} OFFSET #{offset}")
+                        "WHERE receiver_id = #{teacherId} " +
+                        "ORDER BY send_time DESC LIMIT #{limit} OFFSET #{offset}")
         List<Message> getTeacherMessages(@Param("teacherId") Integer teacherId,
                         @Param("limit") Integer limit,
                         @Param("offset") Integer offset);
@@ -169,11 +169,11 @@ public interface MessageMapper extends BaseMapper<Message> {
          * 批量插入消息
          */
         @Insert("<script>" +
-                        "INSERT INTO message (teacher_id, type, title, content, status, create_time, category, priority) VALUES "
+                        "INSERT INTO message (receiver_id, type, title, content, status, send_time, reference_id, require_confirm) VALUES "
                         +
                         "<foreach collection='messages' item='msg' separator=','>" +
-                        "(#{msg.teacherId}, #{msg.type}, #{msg.title}, #{msg.content}, #{msg.status}, " +
-                        "#{msg.createTime}, #{msg.category}, #{msg.priority})" +
+                        "(#{msg.receiverId}, #{msg.type}, #{msg.title}, #{msg.content}, #{msg.status}, " +
+                        "#{msg.sendTime}, #{msg.referenceId}, #{msg.requireConfirm})" +
                         "</foreach>" +
                         "</script>")
         int batchInsertMessages(@Param("messages") List<Message> messages);
@@ -197,7 +197,7 @@ public interface MessageMapper extends BaseMapper<Message> {
          * 获取消息总数
          */
         @Select("SELECT COUNT(*) FROM message " +
-                        "WHERE teacher_id = #{teacherId} AND type = #{type}")
+                        "WHERE receiver_id = #{teacherId} AND type = #{type}")
         int getMessageCount(@Param("teacherId") Integer teacherId, @Param("type") Integer type);
 
         /**
@@ -211,6 +211,6 @@ public interface MessageMapper extends BaseMapper<Message> {
                         "</foreach>" +
                         "</script>")
         int batchUpdateStatus(@Param("messageIds") List<Long> messageIds,
-                        @Param("status") Integer status,
+                        @Param("status") String status,
                         @Param("readTime") LocalDateTime readTime);
 }

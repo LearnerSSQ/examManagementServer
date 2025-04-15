@@ -2,6 +2,7 @@ package com.shishaoqi.examManagementServer.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.shishaoqi.examManagementServer.entity.teacher.Teacher;
 import com.shishaoqi.examManagementServer.entity.invigilation.InvigilationRecord;
 import com.shishaoqi.examManagementServer.entity.invigilation.InvigilationRecordType;
 import com.shishaoqi.examManagementServer.entity.invigilation.InvigilatorAssignment;
@@ -12,6 +13,7 @@ import com.shishaoqi.examManagementServer.repository.InvigilationRecordMapper;
 import com.shishaoqi.examManagementServer.repository.InvigilatorAssignmentMapper;
 import com.shishaoqi.examManagementServer.service.InvigilationRecordService;
 import com.shishaoqi.examManagementServer.service.InvigilatorAssignmentService;
+import com.shishaoqi.examManagementServer.service.TeacherService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +43,9 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
 
     @Autowired
     private InvigilatorAssignmentService assignmentService;
+    
+    @Autowired
+    private TeacherService teacherService;
 
     @Override
     @Cacheable(key = "'assignment_' + #assignmentId")
@@ -821,5 +826,188 @@ public class InvigilationRecordServiceImpl extends ServiceImpl<InvigilationRecor
 
         log.info("成功获取教师监考历史，教师ID：{}，历史记录数：{}", teacherId, history.size());
         return history;
+    }
+    
+    @Override
+    public List<Map<String, Object>> getTeacherInvigilationHistoryByYear(Integer teacherId, int year) {
+        if (teacherId == null) {
+            log.error("获取教师监考历史失败：教师ID为空");
+            throw new BusinessException(ErrorCode.PARAM_ERROR);
+        }
+        
+        // 设置指定年份的时间范围
+        LocalDateTime startTime = LocalDateTime.of(year, 1, 1, 0, 0);
+        LocalDateTime endTime = LocalDateTime.of(year, 12, 31, 23, 59);
+
+        // 获取该教师在指定年份的所有监考安排
+        List<InvigilatorAssignment> assignments = assignmentService.lambdaQuery()
+                .eq(InvigilatorAssignment::getTeacherId, teacherId)
+                .ge(InvigilatorAssignment::getExamStart, startTime)
+                .le(InvigilatorAssignment::getExamStart, endTime)
+                .orderByDesc(InvigilatorAssignment::getExamStart)
+                .list();
+
+        List<Map<String, Object>> history = new ArrayList<>();
+        for (InvigilatorAssignment assignment : assignments) {
+            Map<String, Object> record = new HashMap<>();
+            record.put("assignmentId", assignment.getAssignmentId());
+            record.put("examTime", assignment.getExamStart());
+            record.put("courseName", assignment.getCourseName());
+            record.put("location", assignment.getLocation());
+            record.put("status", assignment.getStatus());
+
+            // 获取评价信息
+            Map<String, Object> evaluation = baseMapper.getTeacherEvaluations(List.of(assignment.getAssignmentId()))
+                    .stream()
+                    .findFirst()
+                    .orElse(null);
+
+            if (evaluation != null) {
+                record.put("evaluation", evaluation);
+            }
+
+            // 获取该监考安排的记录
+            List<InvigilationRecord> records = lambdaQuery()
+                    .eq(InvigilationRecord::getAssignmentId, assignment.getAssignmentId())
+                    .orderByDesc(InvigilationRecord::getCreateTime)
+                    .list();
+
+            record.put("records", records);
+            history.add(record);
+        }
+
+        log.info("成功获取教师{}年份的监考历史，教师ID：{}，历史记录数：{}", year, teacherId, history.size());
+        return history;
+    }
+
+    @Override
+    public Map<String, Object> getDashboardData() {
+        try {
+            Map<String, Object> dashboardData = new HashMap<>();
+
+            // 获取当前时间和一年前的时间
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime oneYearAgo = now.minusYears(1);
+
+            // 获取总体监考统计信息
+            Map<String, Object> statistics = getInvigilationStatistics(oneYearAgo, now);
+            dashboardData.put("statistics", statistics);
+
+            // 获取最近的监考记录（最近10条）
+            LambdaQueryWrapper<InvigilationRecord> recentWrapper = new LambdaQueryWrapper<>();
+            recentWrapper.orderByDesc(InvigilationRecord::getCreateTime)
+                    .last("LIMIT 10");
+            List<InvigilationRecord> recentRecords = list(recentWrapper);
+            dashboardData.put("recentRecords", recentRecords);
+
+            // 获取异常事件统计
+            LambdaQueryWrapper<InvigilationRecord> exceptionWrapper = new LambdaQueryWrapper<>();
+            exceptionWrapper.eq(InvigilationRecord::getType, InvigilationRecordType.INCIDENT)
+                    .between(InvigilationRecord::getCreateTime, oneYearAgo, now);
+            long totalExceptions = count(exceptionWrapper);
+            dashboardData.put("totalExceptions", totalExceptions);
+
+            log.info("成功获取监考管理仪表盘数据");
+            return dashboardData;
+        } catch (Exception e) {
+            log.error("获取监考管理仪表盘数据失败：{}", e.getMessage());
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR.getCode(), "获取监考管理仪表盘数据失败：" + e.getMessage());
+        }
+    }
+
+    @Override
+    public Map<String, Object> getTeacherInvigilationStatistics(LocalDateTime startTime, LocalDateTime endTime) {
+        log.info("获取教师监考统计信息，时间范围：{} - {}", startTime, endTime);
+        Map<String, Object> statistics = new HashMap<>();
+
+        try {
+            // 获取所有监考安排
+            List<InvigilatorAssignment> assignments = assignmentService.getByTimeRange(startTime, endTime);
+            log.debug("查询到{}条监考安排记录", assignments != null ? assignments.size() : 0);
+            
+            if (assignments == null || assignments.isEmpty()) {
+                log.warn("指定时间范围内没有监考安排记录：{} - {}", startTime, endTime);
+                // 添加默认数据，避免前端显示"暂无数据"
+                statistics.put("teacherStats", new ArrayList<>());
+                statistics.put("totalTeachers", 0);
+                statistics.put("message", "在指定时间范围内未找到监考记录，请尝试调整查询时间范围");
+                return statistics;
+            }
+            
+            // 按教师ID分组统计
+            Map<Integer, Long> teacherAssignmentCounts = new HashMap<>();
+            Map<Integer, Long> teacherCompletedCounts = new HashMap<>();
+            
+            // 记录有多少监考安排没有分配教师
+            long unassignedCount = 0;
+            
+            for (InvigilatorAssignment assignment : assignments) {
+                Integer teacherId = assignment.getTeacherId();
+                if (teacherId != null) {
+                    // 统计总监考次数
+                    teacherAssignmentCounts.merge(teacherId, 1L, Long::sum);
+                    
+                    // 统计已完成监考次数
+                    if (assignment.getStatus() == InvigilatorAssignmentStatus.COMPLETED) {
+                        teacherCompletedCounts.merge(teacherId, 1L, Long::sum);
+                    }
+                } else {
+                    unassignedCount++;
+                }
+            }
+            
+            log.debug("找到{}位教师有监考安排，{}个监考安排未分配教师", 
+                    teacherAssignmentCounts.size(), unassignedCount);
+            
+            // 构建教师监考统计列表
+            List<Map<String, Object>> teacherStats = new ArrayList<>();
+            for (Map.Entry<Integer, Long> entry : teacherAssignmentCounts.entrySet()) {
+                Integer teacherId = entry.getKey();
+                Long totalCount = entry.getValue();
+                Long completedCount = teacherCompletedCounts.getOrDefault(teacherId, 0L);
+                
+                Map<String, Object> teacherStat = new HashMap<>();
+                teacherStat.put("teacherId", teacherId);
+                teacherStat.put("totalCount", totalCount);
+                teacherStat.put("completedCount", completedCount);
+                teacherStat.put("completionRate", totalCount > 0 ? (completedCount * 100.0 / totalCount) : 0);
+                
+                // 获取教师姓名和部门信息
+                Teacher teacher = teacherService.getById(teacherId);
+                if (teacher != null) {
+                    teacherStat.put("teacherName", teacher.getName());
+                    teacherStat.put("department", teacher.getDepartment());
+                } else {
+                    log.warn("找不到ID为{}的教师信息", teacherId);
+                    teacherStat.put("teacherName", "未知");
+                    teacherStat.put("department", "未知");
+                }
+                
+                teacherStats.add(teacherStat);
+            }
+            
+            // 按监考次数降序排序
+            teacherStats.sort((a, b) -> {
+                Long countA = (Long) a.get("totalCount");
+                Long countB = (Long) b.get("totalCount");
+                return countB.compareTo(countA);
+            });
+            
+            statistics.put("teacherStats", teacherStats);
+            statistics.put("totalTeachers", teacherStats.size());
+            
+            if (teacherStats.isEmpty()) {
+                statistics.put("message", "在指定时间范围内未找到教师监考记录，请尝试调整查询时间范围");
+            }
+            
+            log.info("成功获取教师监考统计信息，共{}位教师", teacherStats.size());
+        } catch (Exception e) {
+            log.error("获取教师监考统计信息失败", e);
+            statistics.put("teacherStats", new ArrayList<>());
+            statistics.put("totalTeachers", 0);
+            statistics.put("message", "获取教师监考统计信息失败：" + e.getMessage());
+        }
+
+        return statistics;
     }
 }

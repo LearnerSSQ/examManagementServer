@@ -4,10 +4,40 @@
 <head>
     <meta charset="UTF-8">
     <title>个人信息 - 考务管理系统</title>
+    <meta name="_csrf" th:content="${_csrf.token}" />
+    <meta name="_csrf_header" th:content="${_csrf.headerName}" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" th:href="@{/css/base.css}">
     <link rel="stylesheet" th:href="@{/css/nav.css}">
     <link rel="stylesheet" th:href="@{/css/profile.css}">
+    <style>
+        .filter-container {
+            display: flex;
+            align-items: center;
+        }
+
+        .year-filter {
+            padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--border-radius-sm);
+            border: 1px solid var(--color-border);
+            background-color: var(--color-card-bg);
+            color: var(--color-text);
+            font-size: var(--font-size-sm);
+            cursor: pointer;
+            outline: none;
+            transition: all var(--transition-speed) var(--transition-timing);
+        }
+
+        .year-filter:hover {
+            border-color: var(--color-primary);
+            background-color: var(--color-card-hover);
+        }
+
+        .year-filter:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 2px var(--color-primary-transparent);
+        }
+    </style>
 </head>
 
 <body>
@@ -80,6 +110,43 @@
                     </div>
                 </div>
 
+                <!-- 消息通知 -->
+                <div class="profile-section">
+                    <div class="section-header">
+                        <h2 class="section-title">消息通知</h2>
+                        <div class="message-actions">
+                            <button class="btn-filter" onclick="filterMessages('all')">全部</button>
+                            <button class="btn-filter" onclick="filterMessages('SYSTEM')">系统消息</button>
+                            <button class="btn-filter" onclick="filterMessages('ASSIGNMENT')">监考安排</button>
+                            <button class="btn-filter" onclick="filterMessages('TRAINING')">培训通知</button>
+                        </div>
+                    </div>
+                    <div class="message-list">
+                        <div th:if="${#lists.isEmpty(messages)}" class="empty-message">
+                            暂无消息通知
+                        </div>
+                        <div th:each="message : ${messages}"
+                            th:class="'message-item ' + ${message.status == T(com.shishaoqi.examManagementServer.entity.message.MessageStatus).UNREAD ? 'unread' : ''}"
+                            th:data-type="${message.type}">
+                            <div class="message-header">
+                                <div class="message-title" th:text="${message.title}">消息标题</div>
+                                <div class="message-time"
+                                    th:text="${#temporals.format(message.sendTime, 'yyyy-MM-dd HH:mm')}">2024-01-01
+                                    12:00</div>
+                            </div>
+                            <div class="message-content" th:text="${message.content}">消息内容</div>
+                            <div class="message-footer">
+                                <span class="message-type" th:text="${message.type.description}">消息类型</span>
+                                <div class="message-actions">
+                                    <button class="btn-mark-read"
+                                        th:if="${message.status == T(com.shishaoqi.examManagementServer.entity.message.MessageStatus).UNREAD}"
+                                        th:onclick="'markAsRead(' + ${message.messageId} + ')'">标记为已读</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 监考历史 -->
                 <div class="profile-section">
                     <div class="section-header">
@@ -108,6 +175,24 @@
                 <div class="profile-section">
                     <div class="section-header">
                         <h2 class="section-title">工作量统计</h2>
+                        <div class="filter-container">
+                            <select id="yearFilter" class="year-filter">
+                                <option th:value="${#temporals.format(#temporals.createNow(), 'yyyy')}" selected
+                                    th:text="${#temporals.format(#temporals.createNow(), 'yyyy') + '年'}">2023年</option>
+                                <option th:value="${#temporals.format(#temporals.createNow().minusYears(1), 'yyyy')}"
+                                    th:text="${#temporals.format(#temporals.createNow().minusYears(1), 'yyyy') + '年'}">
+                                    2022年</option>
+                                <option th:value="${#temporals.format(#temporals.createNow().minusYears(2), 'yyyy')}"
+                                    th:text="${#temporals.format(#temporals.createNow().minusYears(2), 'yyyy') + '年'}">
+                                    2021年</option>
+                                <option th:value="${#temporals.format(#temporals.createNow().minusYears(3), 'yyyy')}"
+                                    th:text="${#temporals.format(#temporals.createNow().minusYears(3), 'yyyy') + '年'}">
+                                    2020年</option>
+                                <option th:value="${#temporals.format(#temporals.createNow().minusYears(4), 'yyyy')}"
+                                    th:text="${#temporals.format(#temporals.createNow().minusYears(4), 'yyyy') + '年'}">
+                                    2019年</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="workload-chart">
                         <canvas id="workloadChart"></canvas>
@@ -172,32 +257,185 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script th:inline="javascript">
+        // 消息通知功能
+        function filterMessages(type) {
+            const messageItems = document.querySelectorAll('.message-item');
+            const filterButtons = document.querySelectorAll('.btn-filter');
+
+            // 更新按钮状态
+            filterButtons.forEach(button => {
+                if (button.textContent.includes(type === 'all' ? '全部' :
+                    type === 'SYSTEM' ? '系统消息' :
+                        type === 'ASSIGNMENT' ? '监考安排' : '培训通知')) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+
+            // 筛选消息
+            messageItems.forEach(item => {
+                if (type === 'all' || item.getAttribute('data-type') === type) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        function markAsRead(messageId) {
+            // 获取CSRF令牌
+            const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]').content;
+
+            fetch(`/api/messages/${messageId}/read`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [csrfHeader]: csrfToken
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        // 刷新消息列表
+                        refreshMessageList();
+                    } else {
+                        alert(data.message || '标记已读失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('操作失败，请重试');
+                });
+        }
+
+        // 刷新消息列表
+        function refreshMessageList() {
+            // 获取CSRF令牌
+            const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]').content;
+
+            fetch('/api/profile', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [csrfHeader]: csrfToken
+                }
+            })
+                .then(response => response.text())
+                .then(html => {
+                    // 创建临时div来解析HTML
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+
+                    // 获取新的消息列表
+                    const newMessageList = tempDiv.querySelector('.message-list');
+
+                    // 获取当前页面的消息列表
+                    const currentMessageList = document.querySelector('.message-list');
+
+                    if (newMessageList && currentMessageList) {
+                        // 替换消息列表内容
+                        currentMessageList.innerHTML = newMessageList.innerHTML;
+
+                        // 重新绑定筛选功能
+                        const activeFilter = document.querySelector('.btn-filter.active');
+                        if (activeFilter) {
+                            const filterType = activeFilter.textContent.includes('全部') ? 'all' :
+                                activeFilter.textContent.includes('系统消息') ? 'SYSTEM' :
+                                    activeFilter.textContent.includes('监考安排') ? 'ASSIGNMENT' : 'TRAINING';
+                            filterMessages(filterType);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error refreshing message list:', error);
+                });
+        }
+
         // 工作量统计图表
         const workloadData = /*[[${workloadStats}]]*/ {};
         const ctx = document.getElementById('workloadChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: Object.keys(workloadData).map(month => month + '月'),
-                datasets: [{
-                    label: '监考次数',
-                    data: Object.values(workloadData),
-                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
+        let workloadChart;
+
+        function initChart(data) {
+            if (workloadChart) {
+                workloadChart.destroy();
+            }
+
+            workloadChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(data).map(month => month + '月'),
+                    datasets: [{
+                        label: '监考次数',
+                        data: Object.values(data),
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onResize: function (chart, size) {
+                        // 在窗口大小变化时自动调整图表尺寸
+                        chart.resize();
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1,
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            }
                         }
                     }
                 }
-            }
+            });
+        }
+
+        // 初始化图表
+        initChart(workloadData);
+
+        // 年份筛选器变化事件
+        document.getElementById('yearFilter').addEventListener('change', function () {
+            const selectedYear = this.value;
+
+            // 发送请求获取指定年份的数据
+            fetch(`/api/profile/workload-stats?year=${selectedYear}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code === 200) {
+                        // 更新图表
+                        initChart(data.data);
+                    } else {
+                        alert(data.message || '获取数据失败');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('获取数据失败，请重试');
+                });
         });
 
         // 编辑模态框功能
@@ -226,10 +464,15 @@
                 email: document.getElementById('email').value
             };
 
+            // 获取CSRF令牌
+            const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]').content;
+
             fetch('/api/profile/update', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    [csrfHeader]: csrfToken
                 },
                 body: JSON.stringify(formData)
             })
@@ -265,10 +508,15 @@
                 newPassword: newPassword
             };
 
+            // 获取CSRF令牌
+            const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]').content;
+
             fetch('/api/profile/change-password', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    [csrfHeader]: csrfToken
                 },
                 body: JSON.stringify(formData)
             })

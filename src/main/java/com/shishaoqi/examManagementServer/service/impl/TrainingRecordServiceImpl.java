@@ -33,8 +33,8 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
         QueryWrapper<TrainingRecord> queryWrapper = new QueryWrapper<>();
         if (StringUtils.isNotBlank(keyword)) {
             queryWrapper.like("title", keyword)
-                        .or()
-                        .like("description", keyword);
+                    .or()
+                    .like("description", keyword);
         }
         return baseMapper.selectPage(page, queryWrapper);
     }
@@ -258,16 +258,18 @@ public class TrainingRecordServiceImpl extends ServiceImpl<TrainingRecordMapper,
 
     @Override
     public double getCompletionRate(Integer teacherId) {
-        LambdaQueryWrapper<TrainingRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(TrainingRecord::getTeacherId, teacherId);
-        long total = count(wrapper);
+        LambdaQueryWrapper<TrainingRecord> totalWrapper = new LambdaQueryWrapper<>();
+        totalWrapper.eq(TrainingRecord::getTeacherId, teacherId);
+        long total = count(totalWrapper);
 
         if (total == 0) {
             return 0.0;
         }
 
-        wrapper.eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED);
-        long completed = count(wrapper);
+        LambdaQueryWrapper<TrainingRecord> completedWrapper = new LambdaQueryWrapper<>();
+        completedWrapper.eq(TrainingRecord::getTeacherId, teacherId);
+        completedWrapper.eq(TrainingRecord::getStatus, TrainingRecordStatus.COMPLETED);
+        long completed = count(completedWrapper);
 
         return (completed * 100.0) / total;
     }
